@@ -1,0 +1,9 @@
+{
+  "name": "dinv2",
+  "private": true,
+  "packageManager": "pnpm@10.26.0",
+  "scripts": {
+    "build": "pnpm --filter @din/api build",
+    "dev": "pnpm --filter @din/api dev"
+  }
+}
