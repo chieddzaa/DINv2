@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIN</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* DIN — "Execution, enforced." Instrument-panel discipline: condensed numerals as the hero, one signal-orange for NOW. Phone column + presenter panel. */
+:root{
+  --bg:#E9ECE8; --surface:#FFFFFF; --ink:#12161C; --muted:#5B636D; --line:#D3D8D2; --accent:#E8530E;
+  --accent-ink:#FFFFFF; --good:#1E7F52; --warn:#B07A06; --bad:#B42335; --soft:#F3F5F2;
+  --display:"Archivo","Arial Narrow",Arial,sans-serif; --body:"Archivo",system-ui,-apple-system,Segoe UI,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1014; --surface:#161A20; --ink:#ECEEF0; --muted:#8E97A1; --line:#272D35; --accent:#FF6A1F;
+  --accent-ink:#140A04; --good:#3FBF84; --warn:#E3AC2E; --bad:#F0566A; --soft:#1C2128; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0D1014; --surface:#161A20; --ink:#ECEEF0; --muted:#8E97A1; --line:#272D35; --accent:#FF6A1F;
+  --accent-ink:#140A04; --good:#3FBF84; --warn:#E3AC2E; --bad:#F0566A; --soft:#1C2128; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stage{min-height:100%;display:grid;grid-template-columns:minmax(0,420px) 300px;gap:32px;justify-content:center;align-items:start;padding:28px 16px}
+@media (max-width:800px){.stage{grid-template-columns:minmax(0,440px);padding:0 0 24px}}
+.phone{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:34px;height:min(860px,calc(100vh - 56px));min-height:640px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 60px -30px rgba(0,0,0,.35)}
+@media (max-width:800px){.phone{border-radius:0;border:0;height:auto;min-height:100svh;box-shadow:none}}
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:14px 26px 6px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.screen{flex:1;overflow-y:auto;padding:8px 20px 24px;display:flex;flex-direction:column;gap:16px}
+.tabbar{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);background:var(--surface)}
+.tabbar button{background:none;border:0;padding:12px 0 16px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+.tabbar button[aria-current="page"]{color:var(--ink)}
+.tabbar button[aria-current="page"] .ti{background:var(--ink);color:var(--surface)}
+.ti{width:34px;height:22px;border-radius:11px;display:grid;place-items:center;font-family:var(--mono);font-size:11px}
+.display{font-family:var(--display);font-stretch:68%;font-weight:800;text-transform:uppercase;letter-spacing:.01em;line-height:.92;text-wrap:balance;margin:0}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h2{font-size:20px;margin:0;font-weight:700;text-wrap:balance}
+p{margin:0}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.num{font-variant-numeric:tabular-nums}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{border-color:var(--ink)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{filter:brightness(1.05);border-color:var(--accent)}
+.btn-ink{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.btn-block{width:100%}
+.btn-sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.row{display:flex;gap:10px;align-items:center}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card{border:1px solid var(--line);border-radius:18px;padding:16px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.card.soft{background:var(--soft)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:600}
+.field input,.field select{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface)}
+.field input:focus,.field select:focus{border-color:var(--ink);outline:none}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:10px;font-weight:600;font-size:13px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+/* welcome */
+.hero{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:24px;padding-top:24px}
+.wordmark{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:132px;line-height:.8;letter-spacing:-.01em;margin:0}
+.wordmark span{color:var(--accent)}
+.principle{border-left:3px solid var(--accent);padding:4px 0 4px 14px;font-size:17px;font-weight:600;max-width:32ch}
+/* assessment */
+.progress{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.opt{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:14px 16px;font-weight:500;display:flex;gap:12px;align-items:flex-start}
+.opt:hover{border-color:var(--ink)}
+.opt b{font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:2px}
+/* reveal */
+.reveal-name{font-size:60px;color:var(--accent);overflow-wrap:anywhere}
+@media (prefers-reduced-motion:no-preference){.reveal-name{animation:slam .6s cubic-bezier(.2,.9,.2,1) both}.reveal-rest{animation:fade .5s .35s both}}
+@keyframes slam{from{transform:translateY(24px);opacity:0;letter-spacing:.2em}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.dim{display:grid;grid-template-columns:96px 1fr 36px;gap:10px;align-items:center;font-size:13px}
+.dim .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.dim .bar i{display:block;height:100%;background:var(--ink)}
+.dim.top .bar i{background:var(--accent)}
+.quote{font-size:16px;font-weight:600;border-left:3px solid var(--ink);padding-left:12px}
+/* today */
+.topline{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.bell{position:relative;border:1px solid var(--line);background:var(--surface);border-radius:12px;width:42px;height:42px;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:600}
+.bell em{position:absolute;top:-6px;right:-6px;background:var(--accent);color:var(--accent-ink);font-style:normal;font-size:10px;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 4px}
+.now{background:var(--ink);color:var(--surface);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.now .eyebrow{color:color-mix(in srgb,var(--surface) 60%,transparent)}
+.now .live{color:var(--accent);font-weight:700}
+.clock{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:88px;line-height:.85;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.now .ttl{font-size:18px;font-weight:700}
+.now .tone{font-size:14px;color:color-mix(in srgb,var(--surface) 80%,transparent);border-top:1px solid color-mix(in srgb,var(--surface) 18%,transparent);padding-top:10px}
+.now .btn{border-color:color-mix(in srgb,var(--surface) 30%,transparent);background:transparent;color:var(--surface)}
+.now .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.minis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mini{border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.mini b{display:block;font-family:var(--display);font-stretch:70%;font-size:28px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.mini span{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.group-h{display:flex;justify-content:space-between;align-items:baseline}
+.tasks{display:flex;flex-direction:column;gap:8px}
+.task{display:grid;grid-template-columns:4px 56px 1fr auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:10px 12px 10px 0;overflow:hidden}
+.task .stripe{align-self:stretch;margin:-10px 0}
+.p-high .stripe{background:var(--accent)} .p-medium .stripe{background:var(--ink)} .p-low .stripe{background:var(--line)}
+.task .t{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.task .name{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.task .meta{font-size:12px;color:var(--muted)}
+.task.completed .name{text-decoration:line-through;color:var(--muted)}
+.task.missed{background:color-mix(in srgb,var(--bad) 6%,var(--surface))}
+.check{width:34px;height:34px;border-radius:50%;border:2px solid var(--ink);background:var(--surface);display:grid;place-items:center;font-weight:800}
+.check:hover{background:var(--ink);color:var(--surface)}
+.pill{font-size:11px;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.pill.good{color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}
+.pill.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.pill.live{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.pill.ink{color:var(--surface);background:var(--ink)}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:16px;color:var(--muted);text-align:center;font-size:14px}
+.fab{position:sticky;bottom:0;margin-top:auto;padding-top:12px;background:linear-gradient(to bottom,transparent,var(--surface) 40%)}
+/* score */
+.scorehead{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.ring{position:relative;width:132px;height:132px}
+.ring svg{transform:rotate(-90deg)}
+.ring .v{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring .v b{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:52px;line-height:.9}
+.ring .v span{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.tier{font-family:var(--display);font-stretch:68%;font-weight:800;font-size:38px;line-height:.9;text-transform:uppercase}
+.chart{display:flex;flex-direction:column;gap:6px}
+.chart svg{width:100%;height:auto;display:block}
+.badges{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.badge{border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.badge .ico{width:36px;height:36px}
+.badge b{font-size:14px}
+.trophies{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.trophy{border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.trophy .tv{font-family:var(--display);font-stretch:66%;font-weight:800;font-size:22px;line-height:1}
+.trophy.off{opacity:.35}
+.trophy.on .tv{color:var(--accent)}
+.locked{position:relative;overflow:hidden}
+.locked .blur{filter:blur(5px);opacity:.5;pointer-events:none}
+.locked .lockmsg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:16px}
+/* profile */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.tonelist{display:flex;flex-direction:column;gap:8px}
+.toneitem{display:grid;grid-template-columns:76px 1fr;gap:10px;font-size:14px;padding:10px 0;border-top:1px solid var(--line)}
+.toneitem:first-child{border-top:0}
+.toneitem span{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:2px}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:8px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+/* banner + sheet */
+.banner-wrap{position:absolute;top:10px;left:10px;right:10px;z-index:30;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.banner{pointer-events:auto;background:color-mix(in srgb,var(--surface) 92%,var(--ink));border:1px solid var(--line);border-radius:18px;padding:12px 14px;display:grid;grid-template-columns:38px 1fr;gap:10px;box-shadow:0 14px 30px -12px rgba(0,0,0,.35);text-align:left;width:100%}
+@media (prefers-reduced-motion:no-preference){.banner{animation:drop .35s cubic-bezier(.2,.9,.2,1) both}}
+@keyframes drop{from{transform:translateY(-120%);opacity:0}to{transform:none;opacity:1}}
+.appicon{white-space:nowrap;width:38px;height:38px;border-radius:10px;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-family:var(--display);font-stretch:62%;font-weight:800;font-size:15px}
+.appicon i{color:var(--accent);font-style:normal}
+.banner .bt{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.banner .bt b{color:var(--ink)}
+.banner p{font-size:14px;font-weight:500}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:20;display:flex;align-items:flex-end}
+.sheet{background:var(--surface);width:100%;border-radius:24px 24px 0 0;padding:18px 20px 24px;display:flex;flex-direction:column;gap:14px;max-height:90%;overflow-y:auto}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .3s cubic-bezier(.2,.9,.2,1) both}}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.grabber{width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
+.inbox{display:flex;flex-direction:column}
+.inbox .it{padding:12px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.inbox .it:first-child{border-top:0}
+.inbox .it .bt{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.check-row{display:flex;gap:10px;align-items:center;font-size:14px;font-weight:600}
+.check-row input{width:18px;height:18px;accent-color:var(--accent)}
+.planrow{display:grid;grid-template-columns:1fr 56px 56px;gap:8px;font-size:14px;padding:8px 0;border-top:1px solid var(--line)}
+.planrow span{text-align:center;font-family:var(--mono)}
+.planrow.h{font-weight:700;border-top:0;font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+/* presenter */
+.panel{position:sticky;top:28px;display:flex;flex-direction:column;gap:14px}
+@media (max-width:800px){.panel{position:static;padding:0 16px}}
+.panel .card{gap:12px}
+.panel h3{margin:0;font-size:15px}
+.sim{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.btngrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.offset-on{color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600}
+
+/* voice preview */
+.topbtns{display:flex;gap:8px}
+.vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.vstage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 0 4px;text-align:center}
+.orb{position:relative;width:132px;height:132px;border-radius:50%;background:var(--ink);display:grid;place-items:center;color:var(--surface);font-family:var(--display);font-stretch:62%;font-weight:800;font-size:30px;letter-spacing:.02em}
+.orb i{font-style:normal;color:var(--accent)}
+.orb::before,.orb::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid var(--accent);opacity:0}
+.v-idle .orb::before{opacity:.25}
+.v-wake .orb,.v-listen .orb{background:var(--accent);color:var(--accent-ink)}
+.v-wake .orb i,.v-listen .orb i{color:var(--accent-ink)}
+@media (prefers-reduced-motion:no-preference){
+ .v-idle .orb::before{animation:breathe 2.4s ease-in-out infinite}
+ .v-wake .orb{animation:pop .4s cubic-bezier(.2,.9,.2,1)}
+ .v-listen .orb::before,.v-listen .orb::after{animation:ripple 1.6s ease-out infinite}
+ .v-listen .orb::after{animation-delay:.8s}
+ .wave i{animation:wv 1s ease-in-out infinite}
+}
+@keyframes breathe{0%,100%{transform:scale(.96);opacity:.15}50%{transform:scale(1.04);opacity:.4}}
+@keyframes ripple{from{transform:scale(.9);opacity:.7}to{transform:scale(1.5);opacity:0}}
+@keyframes pop{0%{transform:scale(.85)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes wv{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+.wave{display:flex;gap:4px;height:28px;align-items:center}
+.wave i{display:block;width:4px;height:100%;border-radius:2px;background:var(--accent);transform:scaleY(.3)}
+.v-idle .wave i,.v-reply .wave i{animation:none;transform:scaleY(.15);background:var(--line)}
+.vstatus{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.vtranscript{min-height:24px;font-size:18px;font-weight:600;max-width:30ch}
+.vreply{display:grid;grid-template-columns:38px 1fr;gap:10px;text-align:left;background:var(--soft);border-radius:16px;padding:12px;width:100%}
+.vreply p{font-size:15px}
+.vcmds{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.vform{display:flex;gap:8px;width:100%}
+.vform input{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface);min-width:0}
+.vform input:focus{border-color:var(--ink);outline:none}
+.sim-tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:3px 8px;white-space:nowrap}
+
+/* icons, moments, tour */
+.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ti .ic{width:16px;height:16px}
+.bell .ic{width:19px;height:19px}
+.moment{position:absolute;inset:0;z-index:25;display:grid;place-items:center;pointer-events:none}
+.burst{display:flex;flex-direction:column;align-items:center;gap:10px}
+.burst .ck{width:112px;height:112px;border-radius:50%;background:var(--accent);display:grid;place-items:center}
+.burst .ck svg{width:56px;height:56px;stroke:var(--accent-ink);stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.burst .delta{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:44px;line-height:1;color:var(--ink);background:var(--surface);padding:4px 14px;border-radius:12px;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:no-preference){
+ .burst .ck{animation:ckpop .5s cubic-bezier(.2,.9,.2,1) both}
+ .burst .ck svg path{stroke-dasharray:60;stroke-dashoffset:60;animation:draw .35s .2s ease-out forwards}
+ .burst .delta{animation:fade .4s .35s both}
+ .moment.out{animation:fadeout .3s forwards}
+ .tierup .bigtier{animation:slam .7s .15s cubic-bezier(.2,.9,.2,1) both}
+ .tierup .cmp{animation:fade .5s .6s both}
+}
+@keyframes ckpop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeout{to{opacity:0}}
+.tierup{position:absolute;inset:0;z-index:26;background:var(--ink);color:var(--surface);display:flex;flex-direction:column;justify-content:center;gap:18px;padding:28px 24px}
+.tierup .eyebrow{color:color-mix(in srgb,var(--surface) 60%,transparent)}
+.tierup .bigtier{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:110px;line-height:.82;text-transform:uppercase;color:var(--accent)}
+.tierup .cmp{display:flex;flex-direction:column;gap:10px}
+.tierup .cmp div{border:1px solid color-mix(in srgb,var(--surface) 22%,transparent);border-radius:14px;padding:12px}
+.tierup .cmp div.after{border-color:var(--accent)}
+.tierup .cmp span{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--surface) 60%,transparent)}
+.tierup .cmp p{font-size:15px;margin-top:4px}
+.tierup .btn{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tour{border:2px solid var(--accent)}
+.tour .stepn{font-family:var(--display);font-stretch:62%;font-weight:800;font-size:40px;line-height:1;color:var(--accent)}
+.tour h3{font-size:18px}
+.tour .dots{display:flex;gap:4px}
+.tour .dots i{flex:1;height:3px;border-radius:2px;background:var(--line)}
+.tour .dots i.on{background:var(--accent)}
+.toggle{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600}
+.toggle input{width:18px;height:18px;accent-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="statusbar"><span id="sb-time" class="num">9:41</span><span id="sb-mode">DIN</span></div>
+    <div class="screen" id="screen"></div>
+    <nav class="tabbar" id="tabbar" hidden></nav>
+    <div class="banner-wrap" id="banners" aria-live="polite"></div>
+    <div id="sheet"></div>
+  </div>
+  <aside class="panel" aria-label="Presenter controls">
+    <div id="tourcard"></div>
+    <div class="card">
+      <p class="eyebrow">Presenter controls</p>
+      <h3>Run the demo live</h3>
+      <p class="note">Speed up time to show DIN's nudges without waiting. Nothing here appears in the real app.</p>
+      <button class="btn btn-primary btn-block" data-action="tour">▶ Play the guided pitch tour</button>
+      <button class="btn btn-block" data-action="demo">Load demo account</button>
+      <div>
+        <p class="eyebrow">App clock</p>
+        <div class="sim" id="simclock">--:--</div>
+        <span class="offset-on" id="offsetlabel"></span>
+      </div>
+      <div class="btngrid">
+        <button class="btn btn-sm" data-action="skip" data-min="5">+5 min</button>
+        <button class="btn btn-sm" data-action="skip" data-min="15">+15 min</button>
+        <button class="btn btn-sm" data-action="nextevent">Next nudge</button>
+        <button class="btn btn-sm" data-action="realtime">Real time</button>
+      </div>
+      <button class="btn btn-sm btn-block" data-action="voice">Open “Hey DIN” voice preview</button>
+      <button class="btn btn-sm btn-block" data-action="strong">Simulate a strong two weeks (tier up)</button>
+      <label class="toggle" for="snd">Nudge sound <input type="checkbox" id="snd" checked></label>
+      <button class="btn btn-sm btn-block" data-action="reset">Start over (new user)</button>
+    </div>
+    <div class="card soft">
+      <p class="eyebrow">How a task window works</p>
+      <p class="note"><b>At the scheduled time</b> DIN sends a start nudge. <b>10 min later</b>, if nothing's happened, a delay nudge. <b>After 30 min</b> the window closes: the task is marked missed, and the next task gets a recovery prompt.</p>
+      <p class="note">Every message is chosen by the tone algorithm: <b>moment</b> (start, delay, miss, done, recovery) × <b>execution profile</b> × <b>DIN tier</b>.</p>
+    </div>
+    <div class="card soft">
+      <p class="eyebrow">MVP scope</p>
+      <p class="note">Data is saved in this browser only. The production build connects this front end to the Supabase database and Fastify API, with real push notifications on iOS and Android.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+"use strict";
+var WINDOW_DELAY = 10*60*1000, WINDOW_CLOSE = 30*60*1000;
+var KEY = "din-mvp-v1";
+
+/* ---------- icons ---------- */
+var ICON={
+ today:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>',
+ score:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+ profile:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+ mic:'<svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+ bell:'<svg class="ic" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>'
+};
+/* ---------- content ---------- */
+var PROFILES = {
+  A:{name:"The Avoider", dim:"Activation", short:"Avoider",
+     desc:"You know what to do. Starting is where it stalls. DIN shrinks the first step and calls avoidance what it is, without shame.",
+     line:"Just do the first two minutes."},
+  P:{name:"The Perfectionist", dim:"Standards", short:"Perfectionist",
+     desc:"Your standards are high, and sometimes they stop you from starting or finishing. DIN holds you to done, not flawless.",
+     line:"Done beats perfect."},
+  D:{name:"The Drifter", dim:"Focus", short:"Drifter",
+     desc:"You start well, then your attention wanders. DIN brings you back to one task until it's finished.",
+     line:"Name the one thing. Do that."},
+  S:{name:"The Sprinter", dim:"Pacing", short:"Sprinter",
+     desc:"You do your best work under pressure, so you wait for it to arrive. DIN gets you moving before the deadline does.",
+     line:"Don't wait for the pressure. Start now."}
+};
+var QUESTIONS = [
+  {dim:"Activation", q:"A task you scheduled for 9:00 hits 9:00. What usually happens?", o:[
+    ["A","I find something else to do first."],["P","I start preparing so it's done right."],["D","I start, then get pulled into something else."],["S","I push it. It'll go faster closer to the deadline."]]},
+  {dim:"Activation", q:"The hardest part of a big task is…", o:[
+    ["A","Starting it at all."],["P","Knowing it won't be good enough."],["D","Staying on it once I've started."],["S","Caring about it before it's urgent."]]},
+  {dim:"Standards", q:"You finish a first draft. Next, you…", o:[
+    ["A","Put off sending it."],["P","Keep revising. It's never quite ready."],["D","Move on to something else and forget to send it."],["S","Send it at the last minute."]]},
+  {dim:"Standards", q:"When a task goes badly, you tell yourself…", o:[
+    ["A","I'll deal with it later."],["P","I should have done it properly."],["D","I lost the thread somewhere."],["S","I'll make it up in one big push."]]},
+  {dim:"Focus", q:"Halfway through a task, a notification comes in. You…", o:[
+    ["A","Welcome the excuse to stop."],["P","Ignore it, but lose time polishing details."],["D","Check it, and an hour disappears."],["S","Ignore it if the deadline is close. Check it if not."]]},
+  {dim:"Focus", q:"At the end of a typical day, your list shows…", o:[
+    ["A","The important task, untouched."],["P","A few things done, done well."],["D","Lots of things started."],["S","Nothing for days, then everything at once."]]},
+  {dim:"Pacing", q:"Your best work happens…", o:[
+    ["A","When someone is waiting on me."],["P","When I have time to get it right."],["D","When I can follow my interest."],["S","The night before it's due."]]},
+  {dim:"Pacing", q:"Which reminder would actually move you?", o:[
+    ["A","“Just do the first two minutes.”"],["P","“Done beats perfect.”"],["D","“Name the one thing. Do that.”"],["S","“Don't wait for the pressure. Start now.”"]]}
+];
+/* Tone bank: profile → register → moment. {t}=task, {s}=streak */
+var TONE = {
+ A:{ grounding:{start:"{t} is scheduled for now. You don't have to finish it. Open it and give it two minutes.",
+      delay:"You're delaying {t}. That's not a failure, but it is a choice. Two minutes. Start there.",
+      miss:"{t} slipped past its window. No reset. We recover by acting on the next task.",
+      complete:"Done. You started, and starting was the hard part. Your DIN Score reflects it.",
+      recovery:"The last one slipped. This one doesn't have to. Open {t} and take the first step."},
+     firm:{start:"{t} is up. Skip the warm-up. First step, right now.",
+      delay:"Avoidance is talking. {t} is still yours to do. Start the first two minutes.",
+      miss:"Missed {t}. You know the pattern. Break it on the next one.",
+      complete:"Done. That's avoidance losing. Keep the run going.",
+      recovery:"You missed the last window. {t} is how you recover. Begin."},
+     direct:{start:"{t}. Now. You already know the first step.",
+      delay:"You're circling {t}. Stop circling. Start.",
+      miss:"{t} missed. Not like you lately. Next one, on time.",
+      complete:"Done. Clean start, clean finish.",
+      recovery:"One miss. {t} closes the gap. Go."}},
+ P:{ grounding:{start:"{t} is scheduled for now. Aim for a first version, not a perfect one. Start rough.",
+      delay:"Waiting for the right moment won't improve {t}. A rough start beats a perfect plan. Begin.",
+      miss:"{t} passed its window. It didn't need to be perfect. It needed to be started. The next task is your recovery.",
+      complete:"Done. Finished work counts more than perfect work. Your DIN Score reflects it.",
+      recovery:"The last one got away. For {t}, done is the standard. Start now."},
+     firm:{start:"{t} is up. Good enough to ship is the bar. Start.",
+      delay:"You're polishing the plan instead of doing {t}. Start the rough version.",
+      miss:"Missed {t}. Standards that stop you starting aren't standards. Next one.",
+      complete:"Done. Shipped beats perfect. Keep moving.",
+      recovery:"Reset the bar for {t}: finished, not flawless. Go."},
+     direct:{start:"{t}. Ship a version today.",
+      delay:"Perfect is the delay. Start {t}.",
+      miss:"{t} missed. Lower the bar, raise the output.",
+      complete:"Done. That's the standard that matters.",
+      recovery:"Missed one. {t}, rough and on time."}},
+ D:{ grounding:{start:"{t} is scheduled for now. Close the other tabs. This is the one thing.",
+      delay:"Your attention has drifted from {t}. That happens. Come back to it now.",
+      miss:"{t} passed its window. No reset. Pick the next task and give it your full focus.",
+      complete:"Done. You stayed with one thing to the end. That's momentum.",
+      recovery:"The last one got lost in the noise. {t} is the one thing now."},
+     firm:{start:"{t} is up. One task, one tab, until it's done.",
+      delay:"You've wandered from {t}. Name it, return to it, finish it.",
+      miss:"Missed {t}. Drift cost you this one. Lock in on the next.",
+      complete:"Done. Focus held. Carry it into the next task.",
+      recovery:"Back to one thing: {t}. Everything else waits."},
+     direct:{start:"{t}. Single focus. Go.",
+      delay:"Drifting. Back to {t}.",
+      miss:"{t} missed. Tighten the focus.",
+      complete:"Done. Focus held.",
+      recovery:"Refocus: {t}."}},
+ S:{ grounding:{start:"{t} is scheduled for now. You don't need pressure to start. Start while there's time.",
+      delay:"You're waiting for urgency on {t}. Start now and you'll finish without the rush.",
+      miss:"{t} passed its window. The deadline sprint didn't come in time. Start the next one early.",
+      complete:"Done, on time, no last-minute rush. That's how consistency is built.",
+      recovery:"The last one ran out of runway. Give {t} a head start. Begin now."},
+     firm:{start:"{t} is up. Don't wait for the deadline to make it real. Start.",
+      delay:"Saving {t} for later is the pattern. Start it now, at your own pace.",
+      miss:"Missed {t}. The sprint never came. Start the next one on the clock.",
+      complete:"Done, early. Steady beats the sprint.",
+      recovery:"Start {t} on schedule. No sprint needed."},
+     direct:{start:"{t}. On the clock, not the deadline.",
+      delay:"No waiting for pressure. {t}, now.",
+      miss:"{t} missed. Start earlier next time.",
+      complete:"Done on schedule. Keep that pace.",
+      recovery:"{t}. On time this round."}}
+};
+var MINIMAL = {start:"{t}. Now.", delay:"{t} is waiting.", miss:"Missed. Next.", complete:"Done.", recovery:"{t}. Recover."};
+var EVENT_TITLE = {start:"Scheduled for now", delay:"Still waiting", miss:"Window closed", complete:"Done", recovery:"Recovery"};
+var TIERS = [ // from apps/api/src/scores/calculateScore.ts getDINTier
+  {min:90,name:"Elite",coat:"Master of Action",reg:"minimal",regName:"Minimalist, high-trust"},
+  {min:80,name:"Sharp",coat:"Execution Leader",reg:"direct",regName:"Direct, peer-to-peer"},
+  {min:60,name:"Consistent",coat:"Focused Finisher",reg:"firm",regName:"Firm, encouraging"},
+  {min:40,name:"Rising",coat:"Consistent Doer",reg:"grounding",regName:"Supportive, grounding"},
+  {min:0,name:"Raw",coat:"Starter Achiever",reg:"grounding",regName:"Supportive, grounding"}
+];
+var CAPS = [{d:90,n:"Cap V"},{d:30,n:"Cap IV"},{d:14,n:"Cap III"},{d:7,n:"Cap II"},{d:3,n:"Cap I"}];
+
+/* ---------- state ---------- */
+function blank(){return {screen:"welcome",tab:"today",user:{name:"",email:"",role:"",tz:tzName()},answers:[],qi:0,profile:null,scores:null,
+  tasks:[],history:[],notifs:[],unread:0,pro:false,offset:0,recovery:false,trophies:{},previewTier:null,lastTier:null,sound:true,mode:"demo",uid:null,authMsg:""};}
+var S = blank();
+function tzName(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";}catch(e){return "UTC";}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function load(data){
+  if(data && data.screen){S=Object.assign(blank(),data);return;}
+  try{var raw=localStorage.getItem(KEY);if(raw){S=Object.assign(blank(),JSON.parse(raw));}}catch(e){}
+}
+
+/* ---------- time helpers ---------- */
+function now(){return Date.now()+(S.offset||0);}
+function pad(n){return (n<10?"0":"")+n;}
+function ymd(ts){var d=new Date(ts);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function hm(ts){var d=new Date(ts);return pad(d.getHours())+":"+pad(d.getMinutes());}
+function taskTs(t){var p=t.date.split("-"),q=t.time.split(":");return new Date(+p[0],+p[1]-1,+p[2],+q[0],+q[1]).getTime();}
+function fmtTime(ts){try{return new Date(ts).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});}catch(e){return hm(ts);}}
+function addDays(dateStr,n){var p=dateStr.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]+n);return ymd(d.getTime());}
+function shortDay(dateStr){var p=dateStr.split("-");var d=new Date(+p[0],+p[1]-1,+p[2]);return ["S","M","T","W","T","F","S"][d.getDay()];}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function uid(){try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();}catch(e){}
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){var r=Math.random()*16|0;return (c==="x"?r:(r&3|8)).toString(16);});}
+
+/* ---------- scoring ---------- */
+function dayPct(list){if(!list.length)return null;return Math.round(list.filter(function(t){return t.status==="completed";}).length/list.length*100);}
+function stats(){
+  var today=ymd(now());
+  var tt=S.tasks.filter(function(t){return t.date===today;});
+  var todayPct=dayPct(tt);
+  var days=[];
+  for(var i=13;i>=1;i--){var d=addDays(today,-i);var h=S.history.find(function(x){return x.date===d;});days.push({date:d,pct:h?h.pct:null});}
+  days.push({date:today,pct:todayPct,today:true});
+  function avg(arr){var v=arr.filter(function(x){return x.pct!==null;});if(!v.length)return null;return Math.round(v.reduce(function(a,b){return a+b.pct;},0)/v.length);}
+  var avg7=avg(days.slice(-7)), avg14=avg(days);
+  var streak=0, j=days.length-1;
+  if(todayPct!==null && todayPct>=70){streak=1;}
+  j=days.length-2;
+  while(j>=0 && days[j].pct!==null && days[j].pct>=70){streak++;j--;}
+  var tier=tierFor(avg14===null?0:avg14);
+  var done=tt.filter(function(t){return t.status==="completed";}).length;
+  return {today:today,tt:tt,todayPct:todayPct,days:days,avg7:avg7,avg14:avg14,streak:streak,tier:tier,done:done,
+    atRisk:todayPct!==null && todayPct<70 && streak>0};
+}
+function tierFor(v){for(var i=0;i<TIERS.length;i++){if(v>=TIERS[i].min)return TIERS[i];}return TIERS[TIERS.length-1];}
+function capFor(st){for(var i=0;i<CAPS.length;i++){if(st>=CAPS[i].d)return CAPS[i];}return null;}
+
+/* ---------- tone algorithm ---------- */
+function toneFor(event,title,opts){
+  opts=opts||{};
+  var st=stats();
+  var tier=opts.tier||st.tier;
+  var prof=opts.profile||S.profile||"A";
+  var text;
+  if(tier.reg==="minimal"){text=MINIMAL[event];}
+  else{text=TONE[prof][tier.reg][event];}
+  text=text.replace(/\{t\}/g,title||"This task");
+  var streak=opts.streak!=null?opts.streak:st.streak;
+  if(event==="delay" && streak>=3 && tier.reg!=="minimal"){text+=" Your "+streak+"-day streak is on the line.";}
+  return text;
+}
+
+/* ---------- sound ---------- */
+var actx=null;
+function ensureAudio(){try{if(!actx){var AC=window.AudioContext||window.webkitAudioContext;if(AC)actx=new AC();}if(actx&&actx.state==="suspended")actx.resume();}catch(e){}}
+function chime(kind){
+  if(S.sound===false||!actx)return;
+  try{var notes=kind==="complete"?[660,990]:kind==="miss"?[440,330]:kind==="tier"?[523,659,784,1047]:[880,1175];
+    notes.forEach(function(f,i){var o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+i*0.11;
+      o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.18,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+      o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+0.4);});}catch(e){}
+}
+/* ---------- live mode: Supabase ---------- */
+var CFG=window.DIN_CONFIG||{};
+var sb=null;
+try{if(CFG.supabaseUrl&&CFG.supabaseAnonKey&&window.supabase){sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:true,detectSessionInUrl:true}});}}catch(e){console.error(e);sb=null;}
+function live(){return S.mode==="live"&&!!sb&&!!S.uid;}
+function dbErr(error){if(!error)return;console.error(error);showBanner({title:"Not saved",body:"DIN couldn't reach the server ("+(error.message||"network error")+"). Check your connection and try again."});}
+function rowFromTask(t){return {id:t.id,user_id:S.uid,title:t.title,scheduled_date:t.date,scheduled_time:t.time,priority:t.priority,is_recurring:!!t.recurring,status:t.status,completed_at:t.completedAt?new Date(t.completedAt).toISOString():null,delays:t.delays||0};}
+function dbInsertTask(t){if(!live())return;sb.from("tasks").insert(rowFromTask(t)).then(function(r){dbErr(r.error);});}
+function dbUpdateTask(t,fields){if(!live())return;sb.from("tasks").update(fields).eq("id",t.id).then(function(r){dbErr(r.error);});}
+function dbProfile(fields){if(!live())return;sb.from("users").update(fields).eq("id",S.uid).then(function(r){dbErr(r.error);});}
+function dbLog(type,task){if(!live())return;sb.from("notification_logs").insert({user_id:S.uid,task_id:task?task.id:null,type:type}).then(function(r){if(r.error)console.warn(r.error);});}
+function taskFromRow(r){
+  var t={id:r.id,title:r.title,date:r.scheduled_date,time:String(r.scheduled_time).slice(0,5),priority:r.priority||"medium",recurring:!!r.is_recurring,status:r.status,completedAt:r.completed_at?Date.parse(r.completed_at):null,delays:r.delays||0,n:{}};
+  var ts=taskTs(t),n=now();if(t.status!=="pending"||n>=ts)t.n.start=true;if(t.status!=="pending"||n>=ts+WINDOW_DELAY)t.n.delay=true;return t;
+}
+async function loadLive(user){
+  try{await loadLiveInner(user);}catch(e){console.error("loadLive",e);showBanner({title:"Couldn't load your account",body:"Something went wrong loading your data. Refresh the page to try again."});}
+}
+async function loadLiveInner(user){
+  S.mode="live";S.uid=user.id;S.offset=0;
+  var today=ymd(now()), from=addDays(today,-14);
+  var pr=await sb.from("users").select("*").eq("id",user.id).maybeSingle();
+  if(pr.error){dbErr(pr.error);}
+  var p=pr.data;
+  if(!p){var md=user.user_metadata||{};
+    var ins=await sb.from("users").insert({id:user.id,email:user.email,name:md.name||null,role:md.role||null,timezone:md.timezone||tzName()}).select().maybeSingle();
+    if(ins.error)dbErr(ins.error);p=ins.data||{email:user.email};}
+  S.user={name:p.name||"",email:p.email||user.email,role:p.role||"",tz:p.timezone||tzName()};
+  S.pro=p.din_tier==="pro";
+  S.profile=p.execution_profile||null;S.answers=p.assessment_answers||[];
+  S.scores=S.answers.length===8?scoreAnswers(S.answers).scores:null;
+  var tr=await sb.from("tasks").select("*").eq("user_id",user.id).gte("scheduled_date",from).order("scheduled_date").order("scheduled_time");
+  if(tr.error)dbErr(tr.error);
+  var rows=(tr.data||[]).map(taskFromRow);
+  S.history=[];S.tasks=rows;
+  rollover();
+  var done=S.tasks.filter(function(t){return t.date===today&&taskTs(t)<=now()&&t.status!=="pending";}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+  S.recovery=done.length?done[done.length-1].status==="missed":false;
+  S.notifs=S.notifs||[];
+  checkTrophies();S.lastTier=stats().tier.name;
+  S.screen=S.profile?"app":"philosophy";S.tab="today";
+  save();render();
+}
+async function doSignup(name,email,pass,role){
+  S.authMsg="";
+  var r=await sb.auth.signUp({email:email,password:pass,options:{data:{name:name,role:role,timezone:tzName()},emailRedirectTo:location.origin+location.pathname}});
+  if(r.error){S.authMsg=r.error.message;render();return;}
+  if(r.data.session){await loadLive(r.data.user);}
+  else{S.screen="confirm";S.user.email=email;save();render();}
+}
+async function doLogin(email,pass){
+  S.authMsg="";
+  var r=await sb.auth.signInWithPassword({email:email,password:pass});
+  if(r.error){S.authMsg=r.error.message==="Invalid login credentials"?"That email and password don't match. Try again, or create an account.":r.error.message;render();return;}
+  await loadLive(r.data.user);
+}
+function leaveLive(){if(S.mode==="live"&&sb){try{sb.auth.signOut();}catch(e){}}}
+function demoOnly(){if(S.mode!=="live")return false;showBanner({title:"Demo only",body:"Presenter controls run on the demo account, so your real tasks are never changed. Tap “Load demo account” to use them."});return true;}
+
+/* ---------- engine ---------- */
+function notify(event,task,silentBanner){
+  var body=toneFor(event,task?task.title:"");
+  var n={id:uid(),type:event,title:EVENT_TITLE[event],body:body,ts:now(),task:task?task.title:""};
+  S.notifs.unshift(n);S.notifs=S.notifs.slice(0,60);
+  if(!silentBanner){S.unread++;showBanner(n);chime(event);}
+  dbLog(event,task);
+}
+function rollover(){
+  var today=ymd(now());var changed=false;
+  var past={};
+  S.tasks.forEach(function(t){if(t.date<today){(past[t.date]=past[t.date]||[]).push(t);}});
+  Object.keys(past).forEach(function(d){
+    past[d].forEach(function(t){if(t.status==="pending"){t.status="missed";dbUpdateTask(t,{status:"missed"});}});
+    var pct=dayPct(past[d]);var h=S.history.find(function(x){return x.date===d;});
+    if(h)h.pct=pct;else S.history.push({date:d,pct:pct});
+    past[d].forEach(function(t){
+      if(t.recurring){var nt=Object.assign({},t,{id:uid(),date:today,status:"pending",n:{},completedAt:null,delays:0});
+        if(!S.tasks.some(function(x){return x.date===today&&x.title===t.title&&x.time===t.time;})){S.tasks.push(nt);dbInsertTask(nt);}}
+    });
+    changed=true;
+  });
+  if(changed){S.tasks=S.tasks.filter(function(t){return t.date>=today;});S.history=S.history.filter(function(h){return h.date>=addDays(today,-60);});}
+  return changed;
+}
+function tick(){
+  if(S.screen!=="app"){updateClocks();return;}
+  var changed=rollover();
+  var n=now();
+  S.tasks.slice().sort(function(a,b){return taskTs(a)-taskTs(b);}).forEach(function(t){
+    if(t.status!=="pending")return;
+    t.n=t.n||{};
+    var ts=taskTs(t);
+    if(n>=ts && !t.n.start){t.n.start=true;changed=true;
+      if(S.recovery){notify("recovery",t);S.recovery=false;}else notify("start",t);}
+    if(n>=ts+WINDOW_DELAY && !t.n.delay && n<ts+WINDOW_CLOSE){t.n.delay=true;changed=true;notify("delay",t);}
+    if(n>=ts+WINDOW_CLOSE){t.n.delay=true;t.status="missed";changed=true;notify("miss",t);S.recovery=true;dbUpdateTask(t,{status:"missed"});}
+  });
+  if(changed){checkTrophies();save();render();}
+  else updateClocks();
+}
+function nextTask(){
+  var n=now();
+  var pend=S.tasks.filter(function(t){return t.status==="pending";}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+  return pend[0]||null;
+}
+function nextEventTs(){
+  var n=now(),best=null;
+  S.tasks.forEach(function(t){if(t.status!=="pending")return;var ts=taskTs(t);t.n=t.n||{};
+    [[ts,!t.n.start],[ts+WINDOW_DELAY,!t.n.delay],[ts+WINDOW_CLOSE,true]].forEach(function(p){if(p[1]&&p[0]>n&&(best===null||p[0]<best))best=p[0];});});
+  return best;
+}
+
+/* ---------- trophies ---------- */
+var TROPHY_DEFS=[
+  {k:"first",v:"1st",n:"First done"},{k:"p80",v:"80%",n:"80% day"},{k:"p90",v:"90%",n:"90% day"},{k:"p100",v:"100%",n:"Perfect day"},
+  {k:"s7",v:"7d",n:"7-day streak"},{k:"s30",v:"30d",n:"30-day streak"},{k:"rec",v:"↺",n:"Recovery"},{k:"s90",v:"90d",n:"90-day streak"}
+];
+function checkTrophies(){
+  var st=stats();var T=S.trophies;
+  if(S.tasks.some(function(t){return t.status==="completed";}))T.first=true;
+  st.days.forEach(function(d){if(d.pct===null)return;if(d.pct>=80)T.p80=true;if(d.pct>=90)T.p90=true;if(d.pct>=100&&(!d.today||st.tt.length>=3))T.p100=true;});
+  if(st.streak>=7)T.s7=true;if(st.streak>=30)T.s30=true;if(st.streak>=90)T.s90=true;
+}
+
+/* ---------- moments ---------- */
+var phoneEl=document.getElementById("phone");
+function completionMoment(delta){
+  var m=document.createElement("div");m.className="moment";
+  m.innerHTML='<div class="burst"><div class="ck"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>'+(delta>0?'<div class="delta">+'+delta+'% today</div>':'')+'</div>';
+  phoneEl.appendChild(m);
+  setTimeout(function(){m.classList.add("out");},1100);setTimeout(function(){m.remove();},1450);
+}
+function checkTierChange(){
+  var t=stats().tier;var prev=S.lastTier;S.lastTier=t.name;
+  if(!prev||prev===t.name)return;
+  var order=["Raw","Rising","Consistent","Sharp","Elite"];
+  if(order.indexOf(t.name)>order.indexOf(prev))tierUpMoment(prev,t.name);
+}
+function tierUpMoment(from,to){
+  var A=TIERS.find(function(x){return x.name===from;}),B=TIERS.find(function(x){return x.name===to;});
+  var nt=nextTask(),title=nt?nt.title:"Client proposal";
+  var m=document.createElement("div");m.className="tierup";m.setAttribute("role","dialog");m.setAttribute("aria-label","Tier up");
+  m.innerHTML='<p class="eyebrow">Tier up · 14-day DIN Score '+stats().avg14+'</p><div class="bigtier" style="font-size:'+Math.min(110,Math.floor(340/(B.name.length*0.62)))+'px">'+B.name+'</div>'+
+   '<p style="font-size:17px;font-weight:600">DIN\'s voice just changed.</p><p style="opacity:.75;font-size:14px">You\'ve earned a sharper, shorter tone: '+B.regName.toLowerCase()+'. New DIN Coat: <b>'+B.coat+'</b>.</p>'+
+   '<div class="cmp"><div><span>Before · '+A.name+'</span><p>'+esc(toneFor("delay",title,{tier:A,streak:0}))+'</p></div><div class="after"><span>Now · '+B.name+'</span><p>'+esc(toneFor("delay",title,{tier:B,streak:0}))+'</p></div></div>'+
+   '<button class="btn btn-block" type="button">Keep going</button>';
+  m.querySelector("button").addEventListener("click",function(){m.remove();});
+  phoneEl.appendChild(m);chime("tier");
+}
+function strongFortnight(){
+  var today=ymd(now());var st=stats();
+  var arr=st.tier.name==="Sharp"||st.tier.name==="Elite"?[100,98,100,100,96,100,100,98,100,100,100,96,100]:[72,80,85,88,90,92,95,94,96,100,92,98,100];
+  S.history=S.history.filter(function(h){return h.date<addDays(today,-13);});
+  arr.forEach(function(p,i){S.history.push({date:addDays(today,-(13-i)),pct:p});});
+  checkTrophies();
+}
+/* ---------- banners & sheets ---------- */
+var bannerEl=document.getElementById("banners"), sheetEl=document.getElementById("sheet");
+function showBanner(n){
+  var b=document.createElement("button");b.className="banner";b.type="button";
+  b.innerHTML='<div class="appicon"><span>DI<i>N</i></span></div><div><div class="bt"><b>'+esc(n.title)+'</b><span>now</span></div><p>'+esc(n.body)+'</p></div>';
+  b.addEventListener("click",function(){b.remove();});
+  bannerEl.prepend(b);
+  while(bannerEl.children.length>2)bannerEl.lastChild.remove();
+  setTimeout(function(){if(b.parentNode)b.remove();},7000);
+}
+function closeSheet(){sheetEl.innerHTML="";}
+function openSheet(html,onMount){
+  sheetEl.innerHTML='<div class="sheet-bg" data-action="closesheet"><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div>'+html+'</div></div>';
+  if(onMount)onMount(sheetEl);
+}
+function addTaskSheet(){
+  var d=new Date(now()+5*60000);var m=d.getMinutes();d.setMinutes(m<30?30:60,0,0);
+  openSheet('<h2>New task</h2><form id="taskform" class="row" style="flex-direction:column;align-items:stretch;gap:14px">'+
+   '<div class="field"><label for="tf-title">What will you do?</label><input id="tf-title" required maxlength="80" placeholder="e.g. Draft the client proposal" autocomplete="off"></div>'+
+   '<div class="field"><label for="tf-time">Start time</label><input id="tf-time" type="time" required value="'+hm(d.getTime())+'"></div>'+
+   '<div class="field"><label id="tf-pl">Priority</label><div class="seg" role="group" aria-labelledby="tf-pl" id="tf-pri">'+
+     '<button type="button" data-p="low" aria-pressed="false">Low</button><button type="button" data-p="medium" aria-pressed="true">Medium</button><button type="button" data-p="high" aria-pressed="false">High</button></div></div>'+
+   '<label class="check-row" for="tf-rec"><input id="tf-rec" type="checkbox"> Repeat daily</label>'+
+   '<p class="note" id="tf-note">DIN will nudge you at this time. You get 30 minutes to complete it.</p>'+
+   '<button class="btn btn-primary btn-block" type="submit">Schedule it</button></form>',
+   function(root){
+     var pri="medium";
+     root.querySelector("#tf-pri").addEventListener("click",function(e){var b=e.target.closest("button[data-p]");if(!b)return;pri=b.dataset.p;
+       root.querySelectorAll("#tf-pri button").forEach(function(x){x.setAttribute("aria-pressed",String(x===b));});});
+     root.querySelector("#taskform").addEventListener("submit",function(e){e.preventDefault();
+       var title=root.querySelector("#tf-title").value.trim();var time=root.querySelector("#tf-time").value;if(!title||!time)return;
+       var date=ymd(now());var t={id:uid(),title:title,date:date,time:time,priority:pri,recurring:root.querySelector("#tf-rec").checked,status:"pending",n:{},delays:0};
+       if(taskTs(t)<now()-WINDOW_CLOSE){t.date=addDays(date,1);}
+       else if(taskTs(t)<=now()){t.n={};}
+       S.tasks.push(t);dbInsertTask(t);save();closeSheet();render();tick();
+     });
+     setTimeout(function(){var i=root.querySelector("#tf-title");if(i)i.focus();},50);
+   });
+}
+function inboxSheet(){
+  S.unread=0;save();render();
+  var items=S.notifs.length?S.notifs.map(function(n){return '<div class="it"><div class="bt"><b style="color:var(--ink)">'+esc(n.title)+'</b><span class="mono">'+fmtTime(n.ts)+'</span></div><p>'+esc(n.body)+'</p></div>';}).join(""):'<div class="empty">No messages yet. DIN speaks up when a task starts.</div>';
+  openSheet('<div class="spread"><h2>DIN messages</h2><button class="btn btn-sm" data-action="closesheet">Close</button></div><div class="inbox">'+items+'</div>');
+}
+function upgradeSheet(){
+  var rows=[["Task scheduling & reminders","✓","✓"],["DIN Score, streaks, tiers","✓","✓"],["Tone-adapted nudges","✓","✓"],["Coats & Caps","✓","✓"],["30-day trend & monthly report","—","✓"],["Advanced analytics","—","✓"]];
+  openSheet('<div class="spread"><h2>DIN Pro</h2><button class="btn btn-sm" data-action="closesheet">Close</button></div>'+
+   '<p class="muted">For people who want the full picture of how they execute.</p>'+
+   '<div><div class="planrow h"><span style="text-align:left">Feature</span><span>Free</span><span>Pro</span></div>'+rows.map(function(r){return '<div class="planrow"><div>'+r[0]+'</div><span>'+r[1]+'</span><span>'+r[2]+'</span></div>';}).join("")+'</div>'+
+   (S.pro?'<button class="btn btn-block" data-action="downgrade">Switch back to Free</button>':'<button class="btn btn-primary btn-block" data-action="gopro">Turn on Pro preview</button>')+
+   '<p class="note">MVP preview: no payment is taken. Billing through RevenueCat (mobile) and Stripe (web) comes in the next build.</p>');
+}
+
+
+/* ---------- "Hey DIN" voice preview (simulated: no microphone) ---------- */
+var VOICE_CMDS=["Add call the accountant at 3pm","What's next?","I'm done","How am I doing?"];
+var vTimers=[];
+function vClear(){vTimers.forEach(clearTimeout);vTimers=[];}
+function vLater(fn,ms){vTimers.push(setTimeout(fn,ms));}
+function voiceSheet(){
+  vClear();
+  openSheet('<div class="vhead"><div><p class="eyebrow">Voice</p><h2>“Hey DIN”</h2></div><div class="row" style="gap:8px"><span class="sim-tag">Preview · simulated</span><button class="btn btn-sm" data-action="closesheet" id="v-close">Close</button></div></div>'+
+   '<div class="vstage v-idle" id="vstage"><div class="orb" aria-hidden="true"><span>DI<i>N</i></span></div>'+
+   '<div class="wave" aria-hidden="true">'+[0,1,2,3,4,5,6,7,8].map(function(i){return '<i style="animation-delay:'+(i*0.09)+'s"></i>';}).join("")+'</div>'+
+   '<p class="vstatus" id="vstatus" aria-live="polite">Listening for “Hey DIN”</p>'+
+   '<p class="vtranscript" id="vtranscript"></p><div id="vreply" style="width:100%"></div></div>'+
+   '<button class="btn btn-primary btn-block" id="v-wake">Say “Hey DIN”</button>'+
+   '<div id="v-cmdwrap" hidden style="display:flex;flex-direction:column;gap:10px"><p class="note" style="text-align:center">Pick what to say, or type your own.</p>'+
+   '<div class="vcmds">'+VOICE_CMDS.map(function(c){return '<button class="chip" data-cmd="'+esc(c)+'">'+esc(c)+'</button>';}).join("")+'</div>'+
+   '<form class="vform" id="vform"><label for="v-input" class="eyebrow" style="position:absolute;left:-9999px">Type a command</label><input id="v-input" placeholder="e.g. Add gym at 6pm" autocomplete="off"><button class="btn btn-ink btn-sm" type="submit">Say it</button></form></div>'+
+   '<p class="note">In the real app, DIN listens on-device for the wake word (a small model trained on “Hey DIN”), so no audio leaves your phone until you speak a command. This preview simulates the microphone.</p>',
+   function(root){
+     var stage=root.querySelector("#vstage"),status=root.querySelector("#vstatus"),tr=root.querySelector("#vtranscript"),rep=root.querySelector("#vreply"),
+         wakeBtn=root.querySelector("#v-wake"),cmdWrap=root.querySelector("#v-cmdwrap");
+     function setState(cls,txt){stage.className="vstage "+cls;status.textContent=txt;}
+     root.querySelector("#v-close").addEventListener("click",vClear);
+     wakeBtn.addEventListener("click",function(){
+       vClear();rep.innerHTML="";tr.textContent="“Hey DIN”";
+       setState("v-wake","Wake word detected");
+       wakeBtn.hidden=true;
+       vLater(function(){tr.textContent="";setState("v-listen","Listening…");cmdWrap.hidden=false;var i=root.querySelector("#v-input");if(i)i.focus();},700);
+     });
+     function speak(text){
+       if(!text)return;vClear();cmdWrap.hidden=true;rep.innerHTML="";tr.textContent="";setState("v-listen","Listening…");
+       var k=0;(function type(){tr.textContent="“"+text.slice(0,k)+(k<text.length?"":"”");if(k<text.length){k++;vLater(type,28);}else{
+         vLater(function(){setState("v-reply","DIN");var out=runVoice(text);
+           rep.innerHTML='<div class="vreply"><div class="appicon"><span>DI<i>N</i></span></div><p>'+esc(out)+'</p></div>';
+           wakeBtn.hidden=false;wakeBtn.textContent="Say “Hey DIN” again";
+           vLater(function(){setState("v-idle","Listening for “Hey DIN”");},2500);
+         },450);}})();
+     }
+     root.querySelector(".vcmds").addEventListener("click",function(e){var b=e.target.closest("[data-cmd]");if(b)speak(b.dataset.cmd);});
+     root.querySelector("#vform").addEventListener("submit",function(e){e.preventDefault();var i=root.querySelector("#v-input");speak(i.value.trim());i.value="";});
+   });
+}
+function parseVoiceTime(str){
+  var m=str.match(/\b(?:at|for)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i)||str.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if(!m)return null;
+  var h=+m[1],mi=m[2]?+m[2]:0,ap=m[3]?m[3].toLowerCase().charAt(0):null;
+  if(h>23||mi>59)return null;
+  if(ap==="p"&&h<12)h+=12;if(ap==="a"&&h===12)h=0;
+  var base=new Date(now());var d=new Date(base.getFullYear(),base.getMonth(),base.getDate(),h,mi).getTime();
+  if(!ap&&h<=12&&d<now()){var d2=d+12*3600000;if(h<12&&d2>now())d=d2;}
+  if(d<now()-WINDOW_CLOSE)d+=24*3600000;
+  return {ts:d,raw:m[0]};
+}
+function runVoice(text){
+  var t=text.toLowerCase().replace(/[“”"]/g,"").trim();
+  var st=stats();
+  if(/^(add|schedule|remind me to|new task)\b/.test(t)){
+    var title=text.replace(/^\s*(add|schedule|remind me to|new task)\s*/i,"");
+    var tm=parseVoiceTime(title),ts;
+    if(tm){title=title.replace(tm.raw,"");ts=tm.ts;}else{var dd=new Date(now()+30*60000);dd.setMinutes(dd.getMinutes()<30?30:60,0,0);ts=dd.getTime();}
+    title=title.replace(/\b(today|tonight|please)\b/ig,"").replace(/\s+/g," ").trim().replace(/[.?!]$/,"");
+    if(!title)return "What's the task? Try “Add send the proposal at 2pm.”";
+    title=title.charAt(0).toUpperCase()+title.slice(1);
+    var task={id:uid(),title:title,date:ymd(ts),time:hm(ts),priority:"medium",recurring:false,status:"pending",n:{},delays:0};
+    S.tasks.push(task);dbInsertTask(task);save();render();
+    return "Scheduled: "+title+", "+(task.date===ymd(now())?"today":"tomorrow")+" at "+fmtTime(ts)+". I'll hold you to it.";
+  }
+  if(/(what'?s next|what is next|next task|what now)/.test(t)){
+    var nt=nextTask();if(!nt)return "Nothing is scheduled. Plans don't count until they're on the clock. Tell me what to add.";
+    var live=now()>=taskTs(nt);
+    return live?nt.title+" is live right now. "+toneFor(S.recovery?"recovery":"start",nt.title):"Next is "+nt.title+" at "+fmtTime(taskTs(nt))+".";
+  }
+  if(/\b(done|finished|completed|did it)\b/.test(t)){
+    var pend=S.tasks.filter(function(x){return x.status==="pending";}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+    var target=pend.find(function(x){return now()>=taskTs(x);})||pend[0];
+    if(!target)return "There's nothing open to complete. Add your next task.";
+    act("complete",{dataset:{id:target.id}});
+    return "Marked done: "+target.title+". "+toneFor("complete",target.title);
+  }
+  if(/(score|how am i doing|streak|tier)/.test(t)){
+    return "Your DIN Score is "+(st.avg14===null?"not set yet":st.avg14)+", tier "+st.tier.name+". Today you're at "+(st.todayPct===null?"0":st.todayPct)+"%, with a "+st.streak+"-day streak."+(st.atRisk?" Hit 70% today to keep it.":"");
+  }
+  return "I can add tasks, tell you what's next, mark a task done, or read your score. Try “Add gym at 6pm.”";
+}
+
+/* ---------- screens ---------- */
+var screenEl=document.getElementById("screen"), tabEl=document.getElementById("tabbar");
+function render(){
+  var html="";
+  switch(S.screen){
+    case "welcome":html=vWelcome();break;
+    case "signup":html=vSignup();break;
+    case "login":html=vLogin();break;
+    case "confirm":html=vConfirm();break;
+    case "philosophy":html=vPhilosophy();break;
+    case "assess":html=vAssess();break;
+    case "reveal":html=vReveal();break;
+    default:html=S.tab==="score"?vScore():S.tab==="profile"?vProfile():vToday();
+  }
+  var keep=screenEl.scrollTop, sameView=screenEl.dataset.view===S.screen+S.tab;
+  screenEl.innerHTML=html;screenEl.dataset.view=S.screen+S.tab;
+  if(sameView)screenEl.scrollTop=keep;
+  if(S.screen==="app"){tabEl.hidden=false;
+    tabEl.innerHTML=[["today","Today",ICON.today],["score","Score",ICON.score],["profile","Profile",ICON.profile]].map(function(t){return '<button type="button" data-action="tab" data-tab="'+t[0]+'"'+(S.tab===t[0]?' aria-current="page"':'')+'><span class="ti">'+t[2]+'</span>'+t[1]+'</button>';}).join("");
+  } else tabEl.hidden=true;
+  if(S.screen==="signup"){var f=document.getElementById("su-form");if(f)f.addEventListener("submit",onSignup);}
+  if(S.screen==="login"){var lf=document.getElementById("li-form");if(lf)lf.addEventListener("submit",function(e){e.preventDefault();var b=lf.querySelector("button[type=submit]");b.disabled=true;b.textContent="Logging in…";S.user.email=document.getElementById("li-email").value.trim();doLogin(S.user.email,document.getElementById("li-pass").value);});}
+  var mode=document.getElementById("sb-mode");if(mode)mode.textContent=S.mode==="live"?"DIN":"DIN · DEMO";
+  updateClocks();
+}
+function vWelcome(){
+  return '<div class="hero"><div style="display:flex;flex-direction:column;gap:18px">'+
+    '<p class="eyebrow">Doing It Now</p><h1 class="wordmark">DI<span>N</span></h1>'+
+    '<p class="display" style="font-size:40px">Execution,<br>enforced.</p>'+
+    '<p class="muted" style="max-width:34ch">A firm ally for people who plan, but don\'t always do. DIN holds you to the schedule you set, and steps in at the moment you start to avoid it.</p></div>'+
+    '<div style="display:flex;flex-direction:column;gap:14px"><p class="principle">“You are not broken. You are avoiding. Avoidance ends with action.”</p>'+
+    '<button class="btn btn-primary btn-block" data-action="go" data-to="signup">Create your account</button>'+
+    (sb?'<button class="btn btn-block" data-action="go" data-to="login">Log in</button>':'')+
+    '<button class="btn btn-block'+(sb?' btn-sm':'')+'" data-action="demo"'+(sb?' style="border:0;background:none;text-decoration:underline"':'')+'>Explore with a demo account</button></div></div>';
+}
+function vSignup(){
+  var u=S.user;
+  return '<p class="eyebrow">Step 1 of 3 · Account</p><h2 style="font-size:26px">Let\'s set you up.</h2>'+
+   '<form id="su-form" style="display:flex;flex-direction:column;gap:14px">'+
+   '<div class="field"><label for="su-name">Name</label><input id="su-name" required autocomplete="name" value="'+esc(u.name)+'"></div>'+
+   '<div class="field"><label for="su-email">Email</label><input id="su-email" type="email" required autocomplete="email" value="'+esc(u.email)+'"></div>'+
+   '<div class="field"><label for="su-pass">Password</label><input id="su-pass" type="password" required minlength="6" autocomplete="new-password"></div>'+
+   '<div class="field"><label for="su-role">What do you do?</label><select id="su-role">'+
+     ["Founder","Freelancer","Consultant","Creator","Professional","Student"].map(function(r){return '<option'+(u.role===r?' selected':'')+'>'+r+'</option>';}).join("")+'</select></div>'+
+   '<p class="note">Time zone detected: <b>'+esc(u.tz)+'</b></p>'+
+   '<button class="btn btn-primary btn-block" type="submit">Continue</button>'+
+   '<div class="row"><button type="button" class="btn btn-block" disabled title="Coming in the production build">Google</button><button type="button" class="btn btn-block" disabled title="Coming in the production build">Apple</button></div>'+
+   (S.authMsg?'<p class="note" role="alert" style="color:var(--bad);font-weight:600">'+esc(S.authMsg)+'</p>':'')+
+   '<p class="note">'+(sb?'Google and Apple sign-in are coming next. Your account and tasks are saved securely, so you can log in on any device.':'Google and Apple sign-in arrive with the production build. This preview keeps your account in this browser.')+'</p></form>'+
+   '<button class="btn btn-sm" data-action="go" data-to="welcome" style="align-self:flex-start">Back</button>';
+}
+function onSignup(e){e.preventDefault();
+  S.user.name=document.getElementById("su-name").value.trim();S.user.email=document.getElementById("su-email").value.trim();S.user.role=document.getElementById("su-role").value;
+  if(sb){var btn=e.target.querySelector("button[type=submit]");btn.disabled=true;btn.textContent="Creating your account…";
+    doSignup(S.user.name,S.user.email,document.getElementById("su-pass").value,S.user.role);return;}
+  S.mode="demo";S.screen="philosophy";save();render();}
+function vLogin(){
+  return '<p class="eyebrow">Welcome back</p><h2 style="font-size:26px">Log in to DIN</h2>'+
+   '<form id="li-form" style="display:flex;flex-direction:column;gap:14px">'+
+   '<div class="field"><label for="li-email">Email</label><input id="li-email" type="email" required autocomplete="email" value="'+esc(S.user.email||"")+'"></div>'+
+   '<div class="field"><label for="li-pass">Password</label><input id="li-pass" type="password" required autocomplete="current-password"></div>'+
+   (S.authMsg?'<p class="note" role="alert" style="color:var(--bad);font-weight:600">'+esc(S.authMsg)+'</p>':'')+
+   '<button class="btn btn-primary btn-block" type="submit">Log in</button></form>'+
+   '<p class="note">New here? <button class="btn btn-sm" data-action="go" data-to="signup">Create an account</button></p>'+
+   '<button class="btn btn-sm" data-action="go" data-to="welcome" style="align-self:flex-start">Back</button>';
+}
+function vConfirm(){
+  return '<div class="hero"><div style="display:flex;flex-direction:column;gap:16px"><p class="eyebrow">One more step</p><h2 class="display" style="font-size:48px">Check your email.</h2>'+
+   '<p>We sent a confirmation link to <b>'+esc(S.user.email)+'</b>. Tap it, and DIN opens with your account ready.</p>'+
+   '<p class="note">Can\'t find it? Check spam or promotions.</p></div>'+
+   '<button class="btn btn-block" data-action="go" data-to="login">I\'ve confirmed. Log in</button></div>';
+}
+function vPhilosophy(){
+  return '<p class="eyebrow">Step 2 of 3 · How DIN works</p><h2 class="display" style="font-size:54px">DIN is your<br>firm ally.</h2>'+
+   '<p class="muted">It\'s on your side, and it doesn\'t negotiate with avoidance.</p>'+
+   '<div class="card soft"><b>Supportive, not indulgent.</b><p class="muted">No “it\'s okay, try tomorrow.” Your commitments are treated as real.</p></div>'+
+   '<div class="card soft"><b>Direct, never shaming.</b><p class="muted">Misses are recorded honestly. Recovery starts with the next task.</p></div>'+
+   '<div class="card soft"><b>Built around how you avoid.</b><p class="muted">A short assessment tells DIN which kind of nudge actually moves you.</p></div>'+
+   '<button class="btn btn-primary btn-block" data-action="go" data-to="assess" style="margin-top:auto">Take the 8-question assessment</button>';
+}
+function vAssess(){
+  var i=S.qi,q=QUESTIONS[i];
+  return '<div class="spread"><p class="eyebrow">Step 3 of 3 · '+esc(q.dim)+'</p><p class="eyebrow num">'+(i+1)+' / 8</p></div>'+
+   '<div class="progress"><i style="width:'+((i)/8*100)+'%"></i></div>'+
+   '<h2 style="font-size:24px;margin-top:8px">'+esc(q.q)+'</h2>'+
+   '<div style="display:flex;flex-direction:column;gap:10px">'+q.o.map(function(o,k){return '<button class="opt" data-action="answer" data-v="'+o[0]+'"><b>'+String.fromCharCode(65+k)+'</b><span>'+esc(o[1])+'</span></button>';}).join("")+'</div>'+
+   (i>0?'<button class="btn btn-sm" data-action="qback" style="align-self:flex-start">Previous question</button>':'');
+}
+function scoreAnswers(ans){
+  var sc={A:0,P:0,D:0,S:0};ans.forEach(function(a){sc[a]++;});
+  var order=["A","P","D","S"].sort(function(x,y){return sc[y]-sc[x] || (ans[7]===y?1:0)-(ans[7]===x?1:0);});
+  return {scores:sc,top:order[0]};
+}
+function dimBars(sc,top){
+  return ["A","P","D","S"].map(function(k){var pct=Math.round(sc[k]/8*100);return '<div class="dim'+(k===top?' top':'')+'"><span>'+PROFILES[k].dim+'</span><div class="bar"><i style="width:'+pct+'%"></i></div><span class="mono num">'+pct+'%</span></div>';}).join("");
+}
+function vReveal(){
+  var p=PROFILES[S.profile];
+  return '<p class="eyebrow">Your execution profile</p><h1 class="display reveal-name">'+esc(p.name)+'</h1>'+
+   '<div class="reveal-rest" style="display:flex;flex-direction:column;gap:16px"><p style="font-size:16px">'+esc(p.desc)+'</p>'+
+   '<div class="card"><p class="eyebrow">Where your avoidance shows up</p>'+dimBars(S.scores,S.profile)+'</div>'+
+   '<div class="card soft"><p class="eyebrow">How DIN will speak to you</p><p class="quote">'+esc(toneFor("start","Your 9:00 task",{tier:TIERS[4],streak:0}))+'</p>'+
+   '<p class="note">As your DIN Score climbs, the tone gets sharper and shorter. High performers are respected, not coached.</p></div>'+
+   '<button class="btn btn-primary btn-block" data-action="finish">Schedule your first task</button></div>';
+}
+function clockParts(){
+  var t=nextTask();if(!t)return null;var ts=taskTs(t),n=now();
+  var live=n>=ts, target=live?ts+WINDOW_CLOSE:ts, diff=Math.max(0,target-n);
+  var s=Math.floor(diff/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;
+  var txt=h>0?h+":"+pad(m)+":"+pad(sec):pad(m)+":"+pad(sec);
+  return {t:t,live:live,txt:txt,ts:ts};
+}
+function vToday(){
+  var st=stats(),c=clockParts();
+  var greet=(function(){var h=new Date(now()).getHours();return h<12?"Morning":h<18?"Afternoon":"Evening";})();
+  var nowCard;
+  if(c){
+    var tone=c.live?toneFor(S.recovery?"recovery":"start",c.t.title):toneFor(S.recovery?"recovery":"start",c.t.title);
+    nowCard='<section class="now" aria-label="Next task"><div class="spread"><p class="eyebrow">'+(c.live?'<span class="live">● Live</span> · window closes in':'Next up · starts in')+'</p><p class="eyebrow mono">'+fmtTime(c.ts)+'</p></div>'+
+     '<div class="clock" data-clock>'+c.txt+'</div><div class="ttl">'+esc(c.t.title)+'</div>'+
+     '<p class="tone">'+esc(tone)+'</p>'+
+     (c.live?'<div class="row"><button class="btn btn-primary" style="flex:1" data-action="complete" data-id="'+c.t.id+'">Done ✓</button><button class="btn" data-action="delay" data-id="'+c.t.id+'">Not yet</button></div>'
+       :'<div class="row"><button class="btn" style="flex:1" data-action="complete" data-id="'+c.t.id+'">Done early ✓</button></div>')+'</section>';
+  } else nowCard='<section class="now"><p class="eyebrow">Next up</p><div class="clock">--:--</div><div class="ttl">Nothing scheduled.</div><p class="tone">Plans don\'t count until they\'re on the clock. Add your next task.</p></section>';
+  var today=st.today;
+  var list=S.tasks.filter(function(t){return t.date===today;}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+  var later=S.tasks.filter(function(t){return t.date>today;}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+  return '<div class="topline"><div><p class="eyebrow">'+greet+(S.user.name?", "+esc(S.user.name.split(" ")[0]):"")+'</p><h2 class="display" style="font-size:40px">Today</h2></div>'+
+   '<div class="topbtns"><button class="bell" data-action="voice" aria-label="Hey DIN voice preview" title="Hey DIN voice preview">'+ICON.mic+'</button><button class="bell" data-action="inbox" aria-label="DIN messages, '+S.unread+' unread">'+ICON.bell+(S.unread?'<em>'+S.unread+'</em>':'')+'</button></div></div>'+
+   nowCard+
+   '<div class="minis"><div class="mini"><b class="num">'+(st.todayPct===null?"—":st.todayPct+"%")+'</b><span>Today</span></div><div class="mini"><b class="num">'+st.streak+'</b><span>Day streak</span></div><div class="mini"><b class="num">'+(st.avg14===null?"—":st.avg14)+'</b><span>DIN score</span></div></div>'+
+   (st.atRisk?'<p class="note" style="color:var(--warn);font-weight:600">Streak at risk: you need 70% today to keep your '+st.streak+'-day streak.</p>':'')+
+   '<div class="group-h"><p class="eyebrow">Schedule · '+st.done+' of '+list.length+' done</p></div>'+
+   '<div class="tasks">'+(list.length?list.map(taskRow).join(""):'<div class="empty">No tasks today yet.</div>')+'</div>'+
+   (later.length?'<p class="eyebrow">Tomorrow</p><div class="tasks">'+later.map(taskRow).join("")+'</div>':'')+
+   '<div class="fab"><button class="btn btn-ink btn-block" data-action="add">+ Add a task</button></div>';
+}
+function taskRow(t){
+  var ts=taskTs(t),n=now(),live=t.status==="pending"&&n>=ts;
+  var right;
+  if(t.status==="completed")right='<span class="pill good">Done</span>';
+  else if(t.status==="missed")right='<span class="pill bad">Missed</span>';
+  else right=(live?'<span class="pill live" style="margin-right:6px">Live</span>':'')+'<button class="check" data-action="complete" data-id="'+t.id+'" aria-label="Mark '+esc(t.title)+' done">✓</button>';
+  var meta=[t.priority.charAt(0).toUpperCase()+t.priority.slice(1)+" priority"];
+  if(t.recurring)meta.push("Daily");
+  if(t.delays)meta.push(t.delays+" delay"+(t.delays>1?"s":""));
+  if(t.status==="completed"&&t.completedAt)meta.push("done "+fmtTime(t.completedAt));
+  return '<div class="task p-'+t.priority+' '+t.status+'"><div class="stripe"></div><span class="t num">'+fmtTime(ts).replace(/\s?[AP]M/i,function(x){return '<small>'+x.trim()+'</small>';})+'</span><div><div class="name">'+esc(t.title)+'</div><div class="meta">'+meta.join(" · ")+'</div></div><div class="row" style="gap:0">'+right+'</div></div>';
+}
+function chartSvg(days){
+  var W=320,H=140,pl=26,pb=20,pt=8,bw=(W-pl)/days.length;
+  var y=function(v){return pt+(H-pt-pb)*(1-v/100);};
+  var g='';
+  [0,50,100].forEach(function(v){g+='<line x1="'+pl+'" x2="'+W+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)" stroke-width="1"/><text x="'+(pl-6)+'" y="'+(y(v)+3)+'" font-size="9" text-anchor="end" fill="var(--muted)" font-family="IBM Plex Mono">'+v+'</text>';});
+  g+='<line x1="'+pl+'" x2="'+W+'" y1="'+y(70)+'" y2="'+y(70)+'" stroke="var(--accent)" stroke-dasharray="3 3" stroke-width="1"/>';
+  days.forEach(function(d,i){var x=pl+i*bw+bw*.18,w=bw*.64;
+    if(d.pct!==null){var h=Math.max(2,(H-pt-pb)*d.pct/100);g+='<rect x="'+x+'" y="'+(H-pb-h)+'" width="'+w+'" height="'+h+'" rx="2" fill="'+(d.today?'var(--accent)':(d.pct>=70?'var(--ink)':'var(--muted)'))+'" opacity="'+(d.pct>=70||d.today?1:.45)+'"/>';}
+    else g+='<rect x="'+x+'" y="'+(H-pb-2)+'" width="'+w+'" height="2" fill="var(--line)"/>';
+    g+='<text x="'+(x+w/2)+'" y="'+(H-6)+'" font-size="9" text-anchor="middle" fill="'+(d.today?'var(--accent)':'var(--muted)')+'" font-family="IBM Plex Mono">'+(d.today?'T':shortDay(d.date))+'</text>';});
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Daily completion, last 14 days">'+g+'</svg>';
+}
+function capIcon(on){return '<svg class="ico" viewBox="0 0 36 36" aria-hidden="true"><path d="M5 22c0-7 6-13 13-13s13 6 13 13z" fill="'+(on?'var(--accent)':'var(--line)')+'"/><rect x="3" y="22" width="30" height="4" rx="2" fill="'+(on?'var(--ink)':'var(--line)')+'"/></svg>';}
+function coatIcon(){return '<svg class="ico" viewBox="0 0 36 36" aria-hidden="true"><path d="M12 5l6 5 6-5 7 5-3 7-3-1v15H11V16l-3 1-3-7z" fill="var(--ink)"/><path d="M18 10v21" stroke="var(--accent)" stroke-width="2"/></svg>';}
+function vScore(){
+  var st=stats(),cap=capFor(st.streak),v=st.avg14===null?0:st.avg14;
+  var r=56,C=2*Math.PI*r,off=C*(1-v/100);
+  var nextTier=null;for(var i=TIERS.length-1;i>=0;i--){if(TIERS[i].min>v){nextTier=TIERS[i];break;}}
+  var month=S.history.slice(-30);
+  return '<div><p class="eyebrow">DIN Score · 14-day rolling average</p></div>'+
+   '<div class="scorehead"><div class="ring"><svg width="132" height="132"><circle cx="66" cy="66" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="10"/><circle cx="66" cy="66" r="'+r+'" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off+'"/></svg>'+
+   '<div class="v"><div><b class="num">'+(st.avg14===null?"—":st.avg14)+'</b><br><span>of 100</span></div></div></div>'+
+   '<div style="display:flex;flex-direction:column;gap:6px"><p class="eyebrow">Tier</p><div class="tier">'+st.tier.name+'</div>'+
+   '<p class="note">'+(nextTier?(nextTier.min-v)+' points to '+nextTier.name:'Top tier. Hold it.')+'</p></div></div>'+
+   '<div class="minis"><div class="mini"><b class="num">'+(st.todayPct===null?"—":st.todayPct+"%")+'</b><span>Today</span></div><div class="mini"><b class="num">'+(st.avg7===null?"—":st.avg7+"%")+'</b><span>7-day avg</span></div><div class="mini"><b class="num">'+st.streak+'</b><span>Streak</span></div></div>'+
+   '<div class="card chart"><div class="spread"><p class="eyebrow">Daily completion · 14 days</p><span class="pill ink">'+st.tier.name+'</span></div>'+chartSvg(st.days)+'<p class="note">Dashed line: 70%. Days at or above it build your streak.</p></div>'+
+   '<p class="eyebrow">Coats & Caps</p><div class="badges">'+
+     '<div class="badge">'+coatIcon()+'<p class="eyebrow">DIN Coat · mastery</p><b>'+st.tier.coat+'</b><p class="note">Earned from your 14-day score.</p></div>'+
+     '<div class="badge">'+capIcon(!!cap)+'<p class="eyebrow">DIN Cap · consistency</p><b>'+(cap?cap.n+' · '+st.streak+'-day':'Not yet earned')+'</b><p class="note">'+(cap?'Keep the streak to level up.':'Earn Cap I with a 3-day streak.')+'</p></div></div>'+
+   '<p class="eyebrow">Trophies</p><div class="trophies">'+TROPHY_DEFS.map(function(t){var on=!!S.trophies[t.k];return '<div class="trophy '+(on?'on':'off')+'"><span class="tv">'+t.v+'</span>'+t.n+'</div>';}).join("")+'</div>'+
+   '<div class="card'+(S.pro?'':' locked')+'"><div class="'+(S.pro?'':'blur')+'"><div class="spread"><p class="eyebrow">30-day trend · Pro</p><span class="pill good">'+(st.avg7!==null&&st.avg14!==null&&st.avg7>=st.avg14?'Improving':'Watch')+'</span></div>'+
+     '<p style="font-size:14px">Last 7 days averaged <b>'+(st.avg7===null?'—':st.avg7+'%')+'</b> against a 14-day average of <b>'+(st.avg14===null?'—':st.avg14+'%')+'</b>. Days tracked this month: <b>'+(month.length+1)+'</b>. Best day: <b>'+(Math.max.apply(null,st.days.map(function(d){return d.pct||0;})))+'%</b>.</p></div>'+
+     (S.pro?'':'<div class="lockmsg"><b>Advanced analytics are in DIN Pro</b><button class="btn btn-primary btn-sm" data-action="upgrade">See Pro</button></div>')+'</div>';
+}
+function vProfile(){
+  var p=PROFILES[S.profile]||PROFILES.A, st=stats();
+  var pt=S.previewTier?TIERS.find(function(x){return x.name===S.previewTier;}):st.tier;
+  var choices=["Raw","Consistent","Sharp","Elite"];
+  return '<p class="eyebrow">Execution profile</p><h2 class="display" style="font-size:52px;color:var(--accent)">'+esc(p.name)+'</h2>'+
+   '<p>'+esc(p.desc)+'</p>'+
+   (S.scores?'<div class="card">'+dimBars(S.scores,S.profile)+'</div>':'')+
+   '<div class="card soft"><div class="spread"><p class="eyebrow">How DIN speaks to you</p></div>'+
+   '<p class="note">The tone algorithm combines your profile, your DIN tier and the moment. Tap a tier to hear the difference.</p>'+
+   '<div class="chips" role="group" aria-label="Preview tier">'+choices.map(function(c){var t=TIERS.find(function(x){return x.name===c;});return '<button class="chip" data-action="ptier" data-t="'+c+'" aria-pressed="'+(pt.name===c||(c==="Raw"&&pt.name==="Rising"))+'">'+c+(st.tier.name===c?' · you':'')+'</button>';}).join("")+'</div>'+
+   '<p class="note"><b>'+pt.name+'</b>: '+pt.regName+'</p>'+
+   '<div class="tonelist">'+["start","delay","miss","complete","recovery"].map(function(ev){return '<div class="toneitem"><span>'+ev+'</span><p>'+esc(toneFor(ev,"Client proposal",{tier:pt,streak:ev==="delay"?st.streak:0}))+'</p></div>';}).join("")+'</div></div>'+
+   '<div class="card"><p class="eyebrow">Account</p><dl class="kv"><dt>Name</dt><dd>'+esc(S.user.name||"—")+'</dd><dt>Email</dt><dd>'+esc(S.user.email||"—")+'</dd><dt>Role</dt><dd>'+esc(S.user.role||"—")+'</dd><dt>Time zone</dt><dd>'+esc(S.user.tz)+'</dd><dt>Plan</dt><dd>'+(S.pro?'Pro (preview)':'Free')+'</dd><dt>Data</dt><dd>'+(S.mode==="live"?'Saved to your account':'Demo, this browser only')+'</dd></dl>'+
+   '<div class="row"><button class="btn btn-sm" data-action="upgrade">'+(S.pro?'Manage plan':'See Pro')+'</button><button class="btn btn-sm" data-action="retake">Retake assessment</button>'+(S.mode==="live"?'<button class="btn btn-sm" data-action="logout">Log out</button>':'')+'</div></div>';
+}
+function updateClocks(){
+  var n=now();
+  document.getElementById("sb-time").textContent=fmtTime(n).replace(/\s?[AP]M/i,"");
+  document.getElementById("simclock").textContent=fmtTime(n);
+  var off=Math.round((S.offset||0)/60000);
+  document.getElementById("offsetlabel").textContent=off?("Fast-forwarded "+(off>=60?Math.floor(off/60)+"h "+(off%60)+"m":off+" min")):"Real time";
+  var el=screenEl.querySelector("[data-clock]");
+  if(el){var c=clockParts();if(c)el.textContent=c.txt;}
+}
+
+/* ---------- actions ---------- */
+function seedDemo(){
+  var keepOffset=0;S=blank();S.offset=keepOffset;
+  S.mode="demo";S.uid=null;
+  S.user={name:"Tavonga M.",email:"demo@doingitnow.app",role:"Founder",tz:tzName()};
+  S.answers=["A","A","P","A","D","A","S","A"];var r=scoreAnswers(S.answers);S.scores=r.scores;S.profile=r.top;
+  var today=ymd(now());
+  var pcts=[55,62,40,71,78,66,80,85,72,90,74,82,88];
+  pcts.forEach(function(p,i){S.history.push({date:addDays(today,-(13-i)),pct:p});});
+  var base=new Date(now());base.setSeconds(0,0);var b=base.getTime();
+  function mk(offMin,title,pri,status,extra){var ts=b+offMin*60000;var t={id:uid(),title:title,date:ymd(ts),time:hm(ts),priority:pri,recurring:false,status:status,n:{},delays:0};
+    if(status!=="pending"||offMin<=0){t.n={start:true,delay:offMin<=-10};}
+    if(status==="completed")t.completedAt=ts+12*60000;return Object.assign(t,extra||{});}
+  S.tasks=[
+    mk(-190,"Morning planning, 15 min","medium","completed",{recurring:true}),
+    mk(-130,"Send invoice to Harlow & Co.","high","missed",{delays:1}),
+    mk(-75,"Reply to investor intro","medium","completed"),
+    mk(1,"Draft the client pitch narrative","high","pending"),
+    mk(95,"Deep work: DIN onboarding spec","high","pending"),
+    mk(180,"Call the accountant","low","pending")
+  ];
+  S.recovery=true;
+  S.notifs=[
+    {id:uid(),type:"complete",title:"Done",body:toneFor("complete","Reply to investor intro"),ts:b-63*60000},
+    {id:uid(),type:"miss",title:"Window closed",body:toneFor("miss","Send invoice to Harlow & Co."),ts:b-100*60000},
+    {id:uid(),type:"delay",title:"Still waiting",body:toneFor("delay","Send invoice to Harlow & Co."),ts:b-120*60000}
+  ];
+  S.unread=1;S.trophies={first:true,p80:true,p90:true};
+  S.screen="app";S.tab="today";
+  checkTrophies();S.lastTier=stats().tier.name;
+}
+function act(a,el){
+  switch(a){
+    case "go":S.screen=el.dataset.to;S.authMsg="";if(S.screen==="assess"){S.qi=0;S.answers=[];}break;
+    case "demo":leaveLive();seedDemo();closeSheet();bannerEl.innerHTML="";break;
+    case "logout":leaveLive();S=blank();closeSheet();bannerEl.innerHTML="";break;
+    case "answer":S.answers[S.qi]=el.dataset.v;
+      if(S.qi<7){S.qi++;}else{var r=scoreAnswers(S.answers);S.scores=r.scores;S.profile=r.top;S.screen="reveal";}break;
+    case "qback":S.qi=Math.max(0,S.qi-1);break;
+    case "finish":dbProfile({execution_profile:S.profile,assessment_answers:S.answers,onboarded_at:new Date().toISOString()});
+      S.screen="app";S.tab="today";save();render();addTaskSheet();return;
+    case "tab":S.tab=el.dataset.tab;S.previewTier=null;break;
+    case "add":addTaskSheet();return;
+    case "inbox":inboxSheet();return;
+    case "voice":if(S.screen!=="app"){if(S.mode==="live"&&S.uid){return;}seedDemo();save();render();}voiceSheet();return;
+    case "upgrade":upgradeSheet();return;
+    case "gopro":S.pro=true;dbProfile({din_tier:"pro"});closeSheet();break;
+    case "downgrade":S.pro=false;dbProfile({din_tier:"free"});closeSheet();break;
+    case "closesheet":if(el.classList.contains("sheet-bg")&&el!==window.__lastTarget)return;closeSheet();return;
+    case "complete":{var t=S.tasks.find(function(x){return x.id===el.dataset.id;});if(!t||t.status!=="pending")return;
+      var before=stats().todayPct||0;
+      t.status="completed";t.completedAt=now();t.n=t.n||{};t.n.start=true;t.n.delay=true;
+      dbUpdateTask(t,{status:"completed",completed_at:new Date(t.completedAt).toISOString()});
+      if(S.recovery){S.trophies.rec=true;S.recovery=false;}
+      checkTrophies();notify("complete",t);save();render();
+      var after=stats().todayPct||0;completionMoment(t.date===ymd(now())?after-before:0);checkTierChange();return;}
+    case "delay":{var t2=S.tasks.find(function(x){return x.id===el.dataset.id;});if(!t2)return;t2.delays=(t2.delays||0)+1;dbUpdateTask(t2,{delays:t2.delays});
+      notify("delay",t2);break;}
+    case "skip":if(demoOnly())return;S.offset=(S.offset||0)+(+el.dataset.min)*60000;save();tick();render();return;
+    case "nextevent":{if(demoOnly())return;if(S.screen!=="app"){seedDemo();}var ne=nextEventTs();if(ne){S.offset+=ne-now()+500;}save();tick();render();return;}
+    case "realtime":if(S.mode==="live")return;S.offset=0;save();tick();render();return;
+    case "reset":leaveLive();S=blank();closeSheet();bannerEl.innerHTML="";break;
+    case "ptier":S.previewTier=el.dataset.t;break;
+    case "strong":if(demoOnly())return;if(S.screen!=="app"){seedDemo();}strongFortnight();save();render();checkTierChange();return;
+    case "tour":leaveLive();tourGo(0);return;
+    case "tournext":tourGo(TOUR.i+1);return;
+    case "tourback":tourGo(TOUR.i-1);return;
+    case "tourexit":TOUR.i=-1;renderTour();return;
+    case "retake":S.screen="assess";S.qi=0;S.answers=[];break;
+  }
+  save();render();
+}
+document.addEventListener("click",function(e){
+  window.__lastTarget=e.target;ensureAudio();
+  var el=e.target.closest("[data-action]");if(!el)return;
+  if(el.disabled)return;
+  act(el.dataset.action,el);
+});
+document.getElementById("snd").addEventListener("change",function(e){S.sound=e.target.checked;save();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&sheetEl.innerHTML)closeSheet();});
+
+/* ---------- guided pitch tour ---------- */
+var TOUR={i:-1};
+function clearOverlays(){closeSheet();bannerEl.innerHTML="";phoneEl.querySelectorAll(".tierup,.moment").forEach(function(x){x.remove();});vClear();}
+function firstPending(){return S.tasks.filter(function(t){return t.status==="pending"&&taskTs(t)>=now()-WINDOW_CLOSE;}).sort(function(a,b){return taskTs(a)-taskTs(b);})[0];}
+function jumpTo(ts){S.offset=(S.offset||0)+(ts-now())+600;}
+var STEPS=[
+ {h:"The problem",b:"Productivity apps are built for planning. People still skip the tasks they schedule, and the apps let it slide. DIN is built for the moment you start to avoid.",
+  run:function(){S=blank();S.screen="welcome";}},
+ {h:"It learns how you avoid",b:"An 8-question assessment sorts each user into one of four execution profiles. This user is an Avoider: starting is where things stall.",
+  run:function(){seedDemo();S.screen="reveal";}},
+ {h:"Your day, on the clock",b:"Every task has a start time and a 30-minute window. The countdown makes the commitment feel real.",
+  run:function(){S.screen="app";S.tab="today";}},
+ {h:"DIN steps in on time",b:"At the scheduled minute, DIN sends a nudge written for this user's profile. The last task was missed, so this one opens as a recovery prompt.",
+  run:function(){S.screen="app";S.tab="today";var t=firstPending();if(t){jumpTo(taskTs(t));}}},
+ {h:"Avoidance gets named",b:"Ten minutes with no action and DIN calls it out, without shame. It also reminds the user what's at stake: their streak.",
+  run:function(){S.screen="app";S.tab="today";var t=firstPending();if(t){jumpTo(taskTs(t)+WINDOW_DELAY);}}},
+ {h:"Honest misses, instant recovery",b:"When the window closes, the miss is recorded, never erased. The next task becomes the recovery. Tap Done on any task to see the completion moment.",
+  run:function(){S.screen="app";S.tab="today";var t=firstPending();if(t){jumpTo(taskTs(t)+WINDOW_CLOSE);}}},
+ {h:"Score, Coats & Caps",b:"The DIN Score is a 14-day rolling average. Days at 70% or more build the streak. Coats reward mastery, Caps reward consistency.",
+  run:function(){S.screen="app";S.tab="score";}},
+ {h:"The voice evolves",b:"This is DIN's moat. As the score rises, the tone gets sharper and shorter. High performers are respected, not coached.",
+  run:function(){S.screen="app";S.tab="score";strongFortnight();},after:function(){checkTierChange();}},
+ {h:"“Hey DIN”",b:"Hands-free: say the wake word to add a task, ask what's next, or mark something done. The real app detects the wake word on the device, so audio stays private.",
+  run:function(){S.screen="app";S.tab="today";},after:function(){voiceSheet();}}
+];
+function tourGo(i){
+  if(i<0)i=0;if(i>=STEPS.length){TOUR.i=-1;renderTour();return;}
+  TOUR.i=i;clearOverlays();var st=STEPS[i];st.run();save();render();tick();
+  if(st.after)setTimeout(st.after,250);
+  renderTour();
+}
+function renderTour(){
+  var el=document.getElementById("tourcard");
+  if(TOUR.i<0){el.innerHTML="";return;}
+  var st=STEPS[TOUR.i],last=TOUR.i===STEPS.length-1;
+  el.innerHTML='<div class="card tour" aria-live="polite"><div class="spread"><p class="eyebrow">Pitch tour</p><button class="btn btn-sm" data-action="tourexit">Exit</button></div>'+
+   '<div class="dots">'+STEPS.map(function(_,k){return '<i class="'+(k<=TOUR.i?'on':'')+'"></i>';}).join("")+'</div>'+
+   '<div class="row" style="align-items:baseline;gap:12px"><span class="stepn num">'+pad(TOUR.i+1)+'</span><h3>'+esc(st.h)+'</h3></div><p class="note" style="font-size:14px;color:var(--ink)">'+esc(st.b)+'</p>'+
+   '<div class="row">'+(TOUR.i>0?'<button class="btn btn-sm" data-action="tourback">Back</button>':'')+'<button class="btn btn-primary btn-sm" style="flex:1" data-action="tournext">'+(last?'Finish tour':'Next')+'</button></div></div>';
+}
+
+/* ---------- boot ---------- */
+function start(data){
+  load(data&&data.screen?data:null);
+  if(S.mode==="live"&&!sb){S=blank();}
+  if(S.screen==="app"&&S.mode!=="live")rollover();
+  render();
+  if(sb){
+    sb.auth.getSession().then(function(r){
+      var sess=r.data&&r.data.session;
+      if(sess){loadLive(sess.user);}
+      else if(S.mode==="live"){S=blank();render();}
+    });
+    sb.auth.onAuthStateChange(function(ev,sess){
+      if(ev==="SIGNED_IN"&&sess&&(S.mode!=="live"||S.uid!==sess.user.id)&&(S.screen==="confirm"||S.screen==="login"||S.screen==="welcome"||S.screen==="signup")){loadLive(sess.user);}
+    });
+  }
+  try{document.getElementById("snd").checked=S.sound!==false;}catch(e){}
+  if(S.screen==="app"&&!S.lastTier)S.lastTier=stats().tier.name;
+  setInterval(tick,1000);
+}
+if(window.claude&&window.claude.hot&&window.claude.hot.snapshot){try{window.claude.hot.snapshot(function(){return JSON.parse(JSON.stringify(S));});}catch(e){}}
+if(window.claude&&window.claude.hot&&window.claude.hot.ready){window.claude.hot.ready(start);}else{start((window.claude&&window.claude.hot&&window.claude.hot.data)||{});}
+})();
+</script>
+</body>
+</html>
