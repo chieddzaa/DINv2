@@ -1188,6 +1188,10 @@ function start(data){
     });
   }
   try{document.getElementById("snd").checked=S.sound!==false;}catch(e){}
+  if(location.hash==="#hey-din"){
+    var openVoice=function(){if(S.screen!=="app"){seedDemo();save();render();}setTimeout(voiceSheet,350);};
+    if(sb){sb.auth.getSession().then(function(r){if(!(r.data&&r.data.session))openVoice();else setTimeout(voiceSheet,1200);});}else openVoice();
+  }
   if(S.screen==="app"&&!S.lastTier)S.lastTier=stats().tier.name;
   setInterval(tick,1000);
 }
