@@ -56,6 +56,12 @@ alter table public.notification_logs drop constraint if exists notification_logs
 alter table public.notification_logs add constraint notification_logs_type_check
   check (type in ('start','delay','miss','recovery','complete'));
 
+-- ---------- deleting a login also deletes that person's DIN data ----------
+delete from public.users u where not exists (select 1 from auth.users a where a.id = u.id);
+alter table public.users drop constraint if exists users_id_fkey;
+alter table public.users add constraint users_id_fkey
+  foreign key (id) references auth.users(id) on delete cascade;
+
 -- ---------- create a profile row whenever someone signs up ----------
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
