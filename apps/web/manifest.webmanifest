@@ -1,0 +1,19 @@
+{
+  "name": "DIN: Doing It Now",
+  "short_name": "DIN",
+  "description": "A firm ally that holds you to the schedule you set.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12161C",
+  "theme_color": "#12161C",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Hey DIN", "short_name": "Voice", "url": "./#hey-din", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}
