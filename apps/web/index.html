@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12161C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DIN">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>DIN</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
@@ -260,6 +268,11 @@ p{margin:0}
 .tour .dots i.on{background:var(--accent)}
 .toggle{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600}
 .toggle input{width:18px;height:18px;accent-color:var(--accent)}
+
+/* phone + installed app */
+@media (max-width:800px){.statusbar{display:none}.phone{padding-top:env(safe-area-inset-top);height:100svh;min-height:0}.tabbar button{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
+@media (display-mode: standalone){.panel{display:none}.stage{padding:0;grid-template-columns:minmax(0,1fr)}.phone{border-radius:0;border:0;height:100svh;min-height:0;box-shadow:none;padding-top:env(safe-area-inset-top)}.statusbar{display:none}.tabbar button{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
+.installcard .row{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -1085,6 +1098,7 @@ function vProfile(){
    '<div class="chips" role="group" aria-label="Preview tier">'+choices.map(function(c){var t=TIERS.find(function(x){return x.name===c;});return '<button class="chip" data-action="ptier" data-t="'+c+'" aria-pressed="'+(pt.name===c||(c==="Raw"&&pt.name==="Rising"))+'">'+c+(st.tier.name===c?' · you':'')+'</button>';}).join("")+'</div>'+
    '<p class="note"><b>'+pt.name+'</b>: '+pt.regName+'</p>'+
    '<div class="tonelist">'+["start","delay","miss","complete","recovery"].map(function(ev){return '<div class="toneitem"><span>'+ev+'</span><p>'+esc(toneFor(ev,"Client proposal",{tier:pt,streak:ev==="delay"?st.streak:0}))+'</p></div>';}).join("")+'</div></div>'+
+   installCard()+
    '<div class="card"><p class="eyebrow">Account</p><dl class="kv"><dt>Name</dt><dd>'+esc(S.user.name||"—")+'</dd><dt>Email</dt><dd>'+esc(S.user.email||"—")+'</dd><dt>Role</dt><dd>'+esc(S.user.role||"—")+'</dd><dt>Time zone</dt><dd>'+esc(S.user.tz)+'</dd><dt>Plan</dt><dd>'+(S.pro?'Pro (preview)':'Free')+'</dd><dt>Data</dt><dd>'+(S.mode==="live"?'Saved to your account':'Demo, this browser only')+'</dd></dl>'+
    '<div class="row"><button class="btn btn-sm" data-action="upgrade">'+(S.pro?'Manage plan':'See Pro')+'</button><button class="btn btn-sm" data-action="retake">Retake assessment</button>'+(S.mode==="live"?'<button class="btn btn-sm" data-action="logout">Log out</button>':'')+'</div></div>';
 }
@@ -1219,6 +1233,22 @@ function renderTour(){
    '<div class="row" style="align-items:baseline;gap:12px"><span class="stepn num">'+pad(TOUR.i+1)+'</span><h3>'+esc(st.h)+'</h3></div><p class="note" style="font-size:14px;color:var(--ink)">'+esc(st.b)+'</p>'+
    '<div class="row">'+(TOUR.i>0?'<button class="btn btn-sm" data-action="tourback">Back</button>':'')+'<button class="btn btn-primary btn-sm" style="flex:1" data-action="tournext">'+(last?'Finish tour':'Next')+'</button></div></div>';
 }
+
+/* ---------- install ---------- */
+var deferredInstall=null;
+window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredInstall=e;if(S.screen==="app"&&S.tab==="profile")render();});
+window.addEventListener("appinstalled",function(){deferredInstall=null;showBanner({title:"DIN installed",body:"Open DIN from your home screen. It runs full-screen, like any app."});});
+function isStandalone(){try{return window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;}catch(e){return false;}}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);}
+function installCard(){
+  if(isStandalone()||!/^https?:/.test(location.protocol))return "";
+  var how=deferredInstall?'<button class="btn btn-primary btn-sm" data-action="install">Install DIN</button>'
+    :isIOS()?'<p class="note">On iPhone: open this page in <b>Safari</b>, tap <b>Share</b> (the square with an arrow), then <b>Add to Home Screen</b>.</p>'
+    :'<p class="note">In Chrome: tap the <b>⋮</b> menu, then <b>Add to Home screen</b> or <b>Install app</b>.</p>';
+  return '<div class="card soft installcard"><p class="eyebrow">Get the app</p><p style="font-weight:600">Put DIN on your home screen</p><p class="note">It opens full-screen with its own icon, like a regular app.</p>'+how+'</div>';
+}
+document.addEventListener("click",function(e){var b=e.target.closest('[data-action="install"]');if(b&&deferredInstall){deferredInstall.prompt();deferredInstall.userChoice.finally(function(){deferredInstall=null;render();});}});
+if("serviceWorker" in navigator&&/^https?:/.test(location.protocol)&&!(window.claude&&window.claude.hot)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(e){console.warn("sw",e);});});}
 
 /* ---------- boot ---------- */
 function start(data){
