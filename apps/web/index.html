@@ -666,7 +666,7 @@ function showBanner(n){
   while(bannerEl.children.length>2)bannerEl.lastChild.remove();
   setTimeout(function(){if(b.parentNode)b.remove();},7000);
 }
-function closeSheet(){sheetEl.innerHTML="";}
+function closeSheet(){if(window.__vStop){try{window.__vStop();}catch(e){}window.__vStop=null;}try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(e){}sheetEl.innerHTML="";}
 function openSheet(html,onMount){
   sheetEl.innerHTML='<div class="sheet-bg" data-action="closesheet"><div class="sheet" role="dialog" aria-modal="true"><div class="grabber"></div>'+html+'</div></div>';
   if(onMount)onMount(sheetEl);
@@ -715,40 +715,87 @@ var VOICE_CMDS=["Add call the accountant at 3pm","What's next?","I'm done","How 
 var vTimers=[];
 function vClear(){vTimers.forEach(clearTimeout);vTimers=[];}
 function vLater(fn,ms){vTimers.push(setTimeout(fn,ms));}
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
+var WAKE_RE=/\b(?:hey|hi|okay|ok|a)[\s,]+(?:din|dinn|dean|deen|den|dyn|deanne|dinh)\b[\s,.!?]*/i;
+window.__vStop=null;
 function voiceSheet(){
   vClear();
-  openSheet('<div class="vhead"><div><p class="eyebrow">Voice</p><h2>“Hey DIN”</h2></div><div class="row" style="gap:8px"><span class="sim-tag">Preview · simulated</span><button class="btn btn-sm" data-action="closesheet" id="v-close">Close</button></div></div>'+
+  var real=!!SR;
+  openSheet('<div class="vhead"><div><p class="eyebrow">Voice</p><h2>“Hey DIN”</h2></div><div class="row" style="gap:8px"><span class="sim-tag" id="v-tag">'+(real?'Live · beta':'Preview · simulated')+'</span><button class="btn btn-sm" data-action="closesheet" id="v-close">Close</button></div></div>'+
    '<div class="vstage v-idle" id="vstage"><div class="orb" aria-hidden="true"><span>DI<i>N</i></span></div>'+
    '<div class="wave" aria-hidden="true">'+[0,1,2,3,4,5,6,7,8].map(function(i){return '<i style="animation-delay:'+(i*0.09)+'s"></i>';}).join("")+'</div>'+
-   '<p class="vstatus" id="vstatus" aria-live="polite">Listening for “Hey DIN”</p>'+
+   '<p class="vstatus" id="vstatus" aria-live="polite">'+(real?'Tap the mic and speak':'Listening for “Hey DIN”')+'</p>'+
    '<p class="vtranscript" id="vtranscript"></p><div id="vreply" style="width:100%"></div></div>'+
-   '<button class="btn btn-primary btn-block" id="v-wake">Say “Hey DIN”</button>'+
-   '<div id="v-cmdwrap" hidden style="display:flex;flex-direction:column;gap:10px"><p class="note" style="text-align:center">Pick what to say, or type your own.</p>'+
+   (real?'<div class="row"><button class="btn btn-primary" style="flex:1" id="v-talk">'+ICON.mic+' Tap to speak</button><button class="btn" id="v-wakemode" aria-pressed="false">Listen for “Hey DIN”</button></div>'
+        :'<button class="btn btn-primary btn-block" id="v-wake">Say “Hey DIN”</button>')+
+   '<div id="v-cmdwrap"'+(real?'':' hidden')+' style="display:flex;flex-direction:column;gap:10px"><p class="note" style="text-align:center" id="v-hint">'+(real?'Try saying one of these, or type instead.':'Pick what to say, or type your own.')+'</p>'+
    '<div class="vcmds">'+VOICE_CMDS.map(function(c){return '<button class="chip" data-cmd="'+esc(c)+'">'+esc(c)+'</button>';}).join("")+'</div>'+
-   '<form class="vform" id="vform"><label for="v-input" class="eyebrow" style="position:absolute;left:-9999px">Type a command</label><input id="v-input" placeholder="e.g. Add gym at 6pm" autocomplete="off"><button class="btn btn-ink btn-sm" type="submit">Say it</button></form></div>'+
-   '<p class="note">In the real app, DIN listens on-device for the wake word (a small model trained on “Hey DIN”), so no audio leaves your phone until you speak a command. This preview simulates the microphone.</p>',
+   '<form class="vform" id="vform"><label for="v-input" class="eyebrow" style="position:absolute;left:-9999px">Type a command</label><input id="v-input" placeholder="e.g. Add gym at 6pm" autocomplete="off"><button class="btn btn-ink btn-sm" type="submit">Send</button></form></div>'+
+   '<p class="note" id="v-note">'+(real?'Voice uses your browser\'s speech recognition (Google in Chrome, Apple in Safari), so your words are processed by that service. A private, on-device “Hey DIN” model replaces it once training is done.'
+     :'In the real app, DIN listens on-device for the wake word (a small model trained on “Hey DIN”), so no audio leaves your phone until you speak a command. This preview simulates the microphone.')+'</p>',
    function(root){
      var stage=root.querySelector("#vstage"),status=root.querySelector("#vstatus"),tr=root.querySelector("#vtranscript"),rep=root.querySelector("#vreply"),
-         wakeBtn=root.querySelector("#v-wake"),cmdWrap=root.querySelector("#v-cmdwrap");
+         cmdWrap=root.querySelector("#v-cmdwrap");
      function setState(cls,txt){stage.className="vstage "+cls;status.textContent=txt;}
-     root.querySelector("#v-close").addEventListener("click",vClear);
-     wakeBtn.addEventListener("click",function(){
-       vClear();rep.innerHTML="";tr.textContent="“Hey DIN”";
-       setState("v-wake","Wake word detected");
-       wakeBtn.hidden=true;
-       vLater(function(){tr.textContent="";setState("v-listen","Listening…");cmdWrap.hidden=false;var i=root.querySelector("#v-input");if(i)i.focus();},700);
-     });
-     function speak(text){
-       if(!text)return;vClear();cmdWrap.hidden=true;rep.innerHTML="";tr.textContent="";setState("v-listen","Listening…");
-       var k=0;(function type(){tr.textContent="“"+text.slice(0,k)+(k<text.length?"":"”");if(k<text.length){k++;vLater(type,28);}else{
-         vLater(function(){setState("v-reply","DIN");var out=runVoice(text);
-           rep.innerHTML='<div class="vreply"><div class="appicon"><span>DI<i>N</i></span></div><p>'+esc(out)+'</p></div>';
-           wakeBtn.hidden=false;wakeBtn.textContent="Say “Hey DIN” again";
-           vLater(function(){setState("v-idle","Listening for “Hey DIN”");},2500);
-         },450);}})();
+     root.querySelector("#v-close").addEventListener("click",function(){vClear();stopRec();});
+     function talk(out){try{if(S.sound===false||!window.speechSynthesis)return;speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(out);u.rate=1.03;u.lang=navigator.language||"en-US";speechSynthesis.speak(u);}catch(e){}}
+     function showReply(text,typed){
+       vClear();rep.innerHTML="";
+       var go=function(){setState("v-reply","DIN");var out=runVoice(text);
+         rep.innerHTML='<div class="vreply"><div class="appicon"><span>DI<i>N</i></span></div><p>'+esc(out)+'</p></div>';talk(out);
+         vLater(function(){if(!real){setState("v-idle","Listening for “Hey DIN”");}else setState("v-idle",mode==="wake"?"Listening for “Hey DIN”…":"Tap the mic and speak");},2600);};
+       if(!typed){tr.textContent="“"+text+"”";vLater(go,250);return;}
+       setState("v-listen","Listening…");var k=0;(function type(){tr.textContent="“"+text.slice(0,k)+(k<text.length?"":"”");if(k<text.length){k++;vLater(type,24);}else vLater(go,350);})();
      }
-     root.querySelector(".vcmds").addEventListener("click",function(e){var b=e.target.closest("[data-cmd]");if(b)speak(b.dataset.cmd);});
-     root.querySelector("#vform").addEventListener("submit",function(e){e.preventDefault();var i=root.querySelector("#v-input");speak(i.value.trim());i.value="";});
+     /* ---- simulated (no speech recognition in this browser) ---- */
+     var wakeBtn=root.querySelector("#v-wake");
+     if(wakeBtn){wakeBtn.addEventListener("click",function(){
+       vClear();rep.innerHTML="";tr.textContent="“Hey DIN”";setState("v-wake","Wake word detected");wakeBtn.hidden=true;
+       vLater(function(){tr.textContent="";setState("v-listen","Listening…");cmdWrap.hidden=false;var i=root.querySelector("#v-input");if(i)i.focus();},700);});}
+     /* ---- real speech recognition ---- */
+     var rec=null,mode=null,awaiting=false,awaitTimer=null,gotResult=false;
+     function stopRec(){mode=null;awaiting=false;clearTimeout(awaitTimer);if(rec){try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.abort();}catch(e){}rec=null;}
+       var wm=root.querySelector("#v-wakemode");if(wm){wm.setAttribute("aria-pressed","false");wm.textContent="Listen for “Hey DIN”";}}
+     window.__vStop=stopRec;
+     function denied(){stopRec();real=false;setState("v-idle","Microphone access is off");
+       root.querySelector("#v-tag").textContent="Typing only";
+       root.querySelector("#v-hint").textContent="To talk to DIN, allow microphone access for this site in your browser settings. Until then, tap a phrase or type.";}
+     function handleCommand(text){text=(text||"").trim();if(!text)return;awaiting=false;clearTimeout(awaitTimer);showReply(text,false);}
+     function startRec(m){
+       stopRec();mode=m;gotResult=false;
+       try{rec=new SR();}catch(e){denied();return;}
+       rec.lang=navigator.language||"en-US";rec.interimResults=true;rec.continuous=(m==="wake");rec.maxAlternatives=1;
+       rec.onresult=function(ev){
+         var interim="",fin="";
+         for(var i=ev.resultIndex;i<ev.results.length;i++){var r=ev.results[i];if(r.isFinal)fin+=r[0].transcript;else interim+=r[0].transcript;}
+         if(mode==="cmd"){tr.textContent="“"+(fin||interim)+"”";if(fin){gotResult=true;var t=fin.replace(WAKE_RE,"").trim()||fin;var keep=rec;mode=null;try{keep.stop();}catch(e){}handleCommand(t);}return;}
+         if(mode==="wake"){
+           var txt=fin||interim;
+           if(!awaiting&&WAKE_RE.test(txt)){awaiting=true;chime("start");rep.innerHTML="";setState("v-wake","Wake word detected · go ahead");tr.textContent="“Hey DIN”";
+             clearTimeout(awaitTimer);awaitTimer=setTimeout(function(){if(awaiting){awaiting=false;setState("v-idle","Listening for “Hey DIN”…");tr.textContent="";}},8000);}
+           if(awaiting){if(interim)tr.textContent="“"+interim.replace(WAKE_RE,"").trim()+"”";
+             if(fin){var rest=fin.split(WAKE_RE).pop().trim();if(rest.length>2)handleCommand(rest);else{setState("v-listen","Listening…");}}}
+         }
+       };
+       rec.onerror=function(e){
+         if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){denied();return;}
+         if(e.error==="no-speech"&&mode==="cmd"){setState("v-idle","I didn't catch that. Tap the mic and try again.");}
+       };
+       rec.onend=function(){
+         if(mode==="wake"){try{rec.start();}catch(e){}return;}
+         if(mode==="cmd"&&!gotResult){setState("v-idle","Tap the mic and speak");}
+         mode=null;
+       };
+       try{rec.start();}catch(e){denied();return;}
+       if(m==="cmd"){rep.innerHTML="";tr.textContent="";setState("v-listen","Listening…");}
+       else{setState("v-idle","Listening for “Hey DIN”…");var wm=root.querySelector("#v-wakemode");if(wm){wm.setAttribute("aria-pressed","true");wm.textContent="Stop listening";}}
+     }
+     var talkBtn=root.querySelector("#v-talk");
+     if(talkBtn)talkBtn.addEventListener("click",function(){if(mode==="cmd"){stopRec();setState("v-idle","Tap the mic and speak");return;}startRec("cmd");});
+     var wm=root.querySelector("#v-wakemode");
+     if(wm)wm.addEventListener("click",function(){if(mode==="wake"){stopRec();setState("v-idle","Tap the mic and speak");}else startRec("wake");});
+     root.querySelector(".vcmds").addEventListener("click",function(e){var b=e.target.closest("[data-cmd]");if(b){if(mode==="cmd")stopRec();showReply(b.dataset.cmd,true);}});
+     root.querySelector("#vform").addEventListener("submit",function(e){e.preventDefault();var i=root.querySelector("#v-input");var v=i.value.trim();i.value="";if(v){if(mode==="cmd")stopRec();showReply(v,true);}});
    });
 }
 function parseVoiceTime(str){
