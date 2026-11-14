@@ -711,7 +711,7 @@ function upgradeSheet(){
 
 
 /* ---------- "Hey DIN" voice preview (simulated: no microphone) ---------- */
-var VOICE_CMDS=["Add call the accountant at 3pm","What's next?","I'm done","How am I doing?"];
+var VOICE_CMDS=["Add gym tomorrow at 7am","Remind me to call mom in 20 minutes","What's on today?","I'm done","How am I doing?"];
 var vTimers=[];
 function vClear(){vTimers.forEach(clearTimeout);vTimers=[];}
 function vLater(fn,ms){vTimers.push(setTimeout(fn,ms));}
@@ -798,47 +798,96 @@ function voiceSheet(){
      root.querySelector("#vform").addEventListener("submit",function(e){e.preventDefault();var i=root.querySelector("#v-input");var v=i.value.trim();i.value="";if(v){if(mode==="cmd")stopRec();showReply(v,true);}});
    });
 }
-function parseVoiceTime(str){
-  var m=str.match(/\b(?:at|for)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/i)||str.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
-  if(!m)return null;
-  var h=+m[1],mi=m[2]?+m[2]:0,ap=m[3]?m[3].toLowerCase().charAt(0):null;
-  if(h>23||mi>59)return null;
+var NUMW={a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,fifteen:15,twenty:20,thirty:30,forty:40,"forty-five":45,fifty:50,ninety:90};
+function dayStart(offsetDays){var b=new Date(now());return new Date(b.getFullYear(),b.getMonth(),b.getDate()+offsetDays).getTime();}
+/* Pulls a date/time out of a spoken command. Returns {ts, cleaned} or null. */
+function parseWhen(str){
+  var s=" "+str+" ",found=false,ts=null;
+  function cut(re){var m=s.match(re);if(m){s=s.replace(m[0]," ");}return m;}
+  // relative: "in 20 minutes", "in an hour", "in half an hour"
+  var rel=cut(/\s(?:in|after)\s+(half an|half a|\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|forty-five|fifty|ninety)\s*(minutes?|mins?|hours?|hrs?)\b/i);
+  if(rel){var q=rel[1].toLowerCase(),n=/half/.test(q)?0.5:(isNaN(+q)?NUMW[q]:+q),unit=/^h/i.test(rel[2])?60:1;
+    if(/half/.test(q))unit=60;var d=new Date(now()+n*unit*60000);d.setSeconds(0,0);return {ts:d.getTime(),cleaned:s};}
+  var dayOff=0;
+  if(cut(/\s(?:for\s+|on\s+)?tomorrow\b/i))dayOff=1;
+  else cut(/\s(?:for\s+)?today\b/i);
+  var part=null;
+  var pm=cut(/\s(?:this|in the)\s+(morning|afternoon|evening)\b/i)||cut(/\s(tonight)\b/i)||(dayOff?cut(/\s(morning|afternoon|evening|night)\b/i):null);
+  if(pm)part=pm[1].toLowerCase()==="night"?"tonight":pm[1].toLowerCase();
+  var h=null,mi=0,ap=null,tm;
+  if((tm=cut(/\s(?:at\s+)?(noon|midday)\b/i))){h=12;ap="p";}
+  else if((tm=cut(/\s(?:at\s+)?midnight\b/i))){h=0;ap="a";dayOff=dayOff||1;}
+  else if((tm=cut(/\s(?:at|for|by)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)(?=\s|$)/i))||(tm=cut(/\s(?:at|for|by)\s+(\d{1,2})(?::(\d{2}))?(?=\s|$)/i))){
+    h=+tm[1];mi=tm[2]?+tm[2]:0;ap=tm[3]?tm[3].toLowerCase().charAt(0):null;if(h>23||mi>59)return null;}
+  if(h===null&&!part&&!dayOff)return null;
+  if(h===null){h={morning:9,afternoon:14,evening:19,tonight:20}[part]||9;ap="x";}
   if(ap==="p"&&h<12)h+=12;if(ap==="a"&&h===12)h=0;
-  var base=new Date(now());var d=new Date(base.getFullYear(),base.getMonth(),base.getDate(),h,mi).getTime();
-  if(!ap&&h<=12&&d<now()){var d2=d+12*3600000;if(h<12&&d2>now())d=d2;}
-  if(d<now()-WINDOW_CLOSE)d+=24*3600000;
-  return {ts:d,raw:m[0]};
+  if(!ap){ if(part==="evening"||part==="tonight"||part==="afternoon"){if(h<12)h+=12;}
+           else if(dayOff){if(h>=1&&h<=7)h+=12;} }
+  var base=dayStart(dayOff);ts=base+h*3600000+mi*60000;
+  if(!dayOff&&!ap&&h<12&&ts<now()){var t2=ts+12*3600000;if(t2>now())ts=t2;}
+  if(!dayOff&&ap==="x"&&ts<now()){var nx=new Date(now()+15*60000);nx.setMinutes(nx.getMinutes()<30?30:60,0,0);if(ymd(nx.getTime())===ymd(now()))ts=nx.getTime();}
+  if(!dayOff&&ts<now()-WINDOW_CLOSE)ts+=24*3600000;
+  return {ts:ts,cleaned:s};
 }
+var STOP=/^(the|a|an|my|to|with|for|on|at|in|of|and|task|it|that|this|i|im|i'm|am|done|finished|completed|cancel|delete|remove)$/i;
+function words(x){return x.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(function(w){return w.length>1&&!STOP.test(w);});}
+function findTask(phrase,pool){
+  var q=words(phrase);if(!q.length)return null;var best=null,bs=0;
+  pool.forEach(function(t){var tw=words(t.title),sc=0;q.forEach(function(w){if(tw.some(function(x){return x===w||x.indexOf(w)===0||w.indexOf(x)===0;}))sc++;});if(sc>bs){bs=sc;best=t;}});
+  return bs>0?best:null;
+}
+function dbDeleteTask(t){if(!live())return;sb.from("tasks").delete().eq("id",t.id).then(function(r){dbErr(r.error);});}
+function whenWord(ts){var d=ymd(ts),tdy=ymd(now());return d===tdy?"today":d===addDays(tdy,1)?"tomorrow":new Date(ts).toLocaleDateString([], {weekday:"long"});}
 function runVoice(text){
-  var t=text.toLowerCase().replace(/[“”"]/g,"").trim();
-  var st=stats();
-  if(/^(add|schedule|remind me to|new task)\b/.test(t)){
-    var title=text.replace(/^\s*(add|schedule|remind me to|new task)\s*/i,"");
-    var tm=parseVoiceTime(title),ts;
-    if(tm){title=title.replace(tm.raw,"");ts=tm.ts;}else{var dd=new Date(now()+30*60000);dd.setMinutes(dd.getMinutes()<30?30:60,0,0);ts=dd.getTime();}
-    title=title.replace(/\b(today|tonight|please)\b/ig,"").replace(/\s+/g," ").trim().replace(/[.?!]$/,"");
+  var raw=text.replace(/[“”"]/g,"").trim(),t=raw.toLowerCase();
+  var st=stats(),today=ymd(now());
+  var pending=S.tasks.filter(function(x){return x.status==="pending";}).sort(function(a,b){return taskTs(a)-taskTs(b);});
+  if(/(what can you do|^help\b|what do you understand|commands)/.test(t)){
+    return "You can say: “Add gym at 6pm”, “Remind me to call mom tomorrow at 9”, “Add the report in 20 minutes”, “What's on today?”, “What's next?”, “I'm done with the report”, “Cancel gym”, or “How am I doing?”";
+  }
+  var cm=raw.match(/^\s*(?:please\s+)?(cancel|delete|remove)\s+(.+)$/i);
+  if(cm){var tgt=findTask(cm[2],pending);if(!tgt)return "I couldn't find an open task called “"+cm[2].replace(/[.?!]$/,"")+"”. Say “What's on today?” to hear your list.";
+    S.tasks=S.tasks.filter(function(x){return x.id!==tgt.id;});dbDeleteTask(tgt);save();render();
+    return "Removed: "+tgt.title+". Cancelling is a choice too. Make sure the next one sticks.";}
+  var am=raw.match(/^\s*(?:please\s+|can you\s+|could you\s+)?(add|schedule|remind me to|remind me|new task|put|i need to|i have to|i've got to|ive got to|i gotta)\s+(.+)$/i);
+  if(am){
+    var body=" "+am[2]+" ",pri="medium";
+    if(/\b(high priority|urgent|important|asap|top priority)\b/i.test(body)){pri="high";body=body.replace(/\b(it'?s\s+)?(high priority|urgent|important|asap|top priority)\b/ig," ");}
+    else if(/\blow priority\b/i.test(body)){pri="low";body=body.replace(/\blow priority\b/ig," ");}
+    var w=parseWhen(body),ts;
+    if(w){ts=w.ts;body=w.cleaned;}else{var dd=new Date(now()+30*60000);dd.setMinutes(dd.getMinutes()<30?30:60,0,0);ts=dd.getTime();}
+    var title=body.replace(/\b(on|to)\s+my\s+(list|schedule|calendar)\b/ig," ").replace(/\b(please|for me)\b/ig," ").replace(/\s+(at|for|on|by)\s*$/i,"").replace(/\s+([,.!?])/g,"$1").replace(/\s+/g," ").trim().replace(/[.?!,\s]+$/,"").replace(/\s+(at|for|on|by)$/i,"");
     if(!title)return "What's the task? Try “Add send the proposal at 2pm.”";
     title=title.charAt(0).toUpperCase()+title.slice(1);
-    var task={id:uid(),title:title,date:ymd(ts),time:hm(ts),priority:"medium",recurring:false,status:"pending",n:{},delays:0};
+    var task={id:uid(),title:title,date:ymd(ts),time:hm(ts),priority:pri,recurring:false,status:"pending",n:{},delays:0};
     S.tasks.push(task);dbInsertTask(task);save();render();
-    return "Scheduled: "+title+", "+(task.date===ymd(now())?"today":"tomorrow")+" at "+fmtTime(ts)+". I'll hold you to it.";
+    return "Scheduled: "+title+", "+whenWord(ts)+" at "+fmtTime(ts)+(pri==="high"?", high priority":"")+". I'll hold you to it.";
   }
-  if(/(what'?s next|what is next|next task|what now)/.test(t)){
+  if(/(what'?s on|what is on|what do i have|what have i got|my (tasks|day|schedule|list)|what'?s left|what is left|rest of (my|the) day|today'?s (tasks|plan|schedule))/.test(t)){
+    var tom=/tomorrow/.test(t);var day=tom?addDays(today,1):today;
+    var list=pending.filter(function(x){return x.date===day;});
+    var doneN=S.tasks.filter(function(x){return x.date===day&&x.status==="completed";}).length;
+    if(!list.length)return tom?"Nothing on tomorrow yet. Tell me what to add.":(doneN?"You're clear. "+doneN+" done today. Add the next one when you're ready.":"Nothing scheduled today. Plans don't count until they're on the clock.");
+    var spoken=list.slice(0,4).map(function(x){return x.title+" at "+fmtTime(taskTs(x));}).join(", ");
+    return (tom?"Tomorrow: ":"Still to do today: ")+spoken+(list.length>4?", and "+(list.length-4)+" more":"")+"."+(doneN&&!tom?" "+doneN+" already done.":"");
+  }
+  if(/(what'?s next|what is next|next task|what now|what should i do)/.test(t)){
     var nt=nextTask();if(!nt)return "Nothing is scheduled. Plans don't count until they're on the clock. Tell me what to add.";
-    var live=now()>=taskTs(nt);
-    return live?nt.title+" is live right now. "+toneFor(S.recovery?"recovery":"start",nt.title):"Next is "+nt.title+" at "+fmtTime(taskTs(nt))+".";
+    var lv=now()>=taskTs(nt);
+    return lv?nt.title+" is live right now. "+toneFor(S.recovery?"recovery":"start",nt.title):"Next is "+nt.title+", "+whenWord(taskTs(nt))+" at "+fmtTime(taskTs(nt))+".";
   }
-  if(/\b(done|finished|completed|did it)\b/.test(t)){
-    var pend=S.tasks.filter(function(x){return x.status==="pending";}).sort(function(a,b){return taskTs(a)-taskTs(b);});
-    var target=pend.find(function(x){return now()>=taskTs(x);})||pend[0];
+  if(/\b(done|finished|completed|did it|i did|knocked out)\b/.test(t)){
+    var named=raw.replace(/^.*?\b(done with|finished with|done|finished|completed|did|knocked out)\b/i,"");
+    var target=(named.trim()&&findTask(named,pending))||pending.find(function(x){return now()>=taskTs(x);})||pending[0];
     if(!target)return "There's nothing open to complete. Add your next task.";
     act("complete",{dataset:{id:target.id}});
     return "Marked done: "+target.title+". "+toneFor("complete",target.title);
   }
-  if(/(score|how am i doing|streak|tier)/.test(t)){
+  if(/(score|how am i doing|how'?m i doing|streak|tier|progress)/.test(t)){
     return "Your DIN Score is "+(st.avg14===null?"not set yet":st.avg14)+", tier "+st.tier.name+". Today you're at "+(st.todayPct===null?"0":st.todayPct)+"%, with a "+st.streak+"-day streak."+(st.atRisk?" Hit 70% today to keep it.":"");
   }
-  return "I can add tasks, tell you what's next, mark a task done, or read your score. Try “Add gym at 6pm.”";
+  return "I didn't catch a command in that. Try “Add gym at 6pm”, “What's on today?”, or say “Help” to hear everything I can do.";
 }
 
 /* ---------- screens ---------- */
