@@ -3,6 +3,6 @@
 // database decides what each signed-in user can read or change.
 // Never put the service_role / secret key here.
 window.DIN_CONFIG = {
-  supabaseUrl: "",
-  supabaseAnonKey: ""
+  supabaseUrl: "https://rcakhqznnqphhvxandmc.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjYWtocXpubnFwaGh2eGFuZG1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTgyMTcsImV4cCI6MjA4ODk3NDIxN30.5MBxD2N_rlaWvVrJCrNyHCtBHnRsygVS787JS340siU"
 };
