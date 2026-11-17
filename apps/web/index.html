@@ -523,7 +523,9 @@ function rowFromTask(t){return {id:t.id,user_id:S.uid,title:t.title,scheduled_da
 function dbInsertTask(t){if(!live())return;sb.from("tasks").insert(rowFromTask(t)).then(function(r){dbErr(r.error);});}
 function dbUpdateTask(t,fields){if(!live())return;sb.from("tasks").update(fields).eq("id",t.id).then(function(r){dbErr(r.error);});}
 function dbProfile(fields){if(!live())return;sb.from("users").update(fields).eq("id",S.uid).then(function(r){dbErr(r.error);});}
-function dbLog(type,task){if(!live())return;sb.from("notification_logs").insert({user_id:S.uid,task_id:task?task.id:null,type:type}).then(function(r){if(r.error)console.warn(r.error);});}
+function dbLog(type,task){if(!live())return;if(type==="recovery")type="start";
+  var row={user_id:S.uid,task_id:task?task.id:null,type:type};
+  (task?sb.from("notification_logs").upsert(row,{onConflict:"task_id,type",ignoreDuplicates:true}):sb.from("notification_logs").insert(row)).then(function(r){if(r.error)console.warn(r.error);});}
 function taskFromRow(r){
   var t={id:r.id,title:r.title,date:r.scheduled_date,time:String(r.scheduled_time).slice(0,5),priority:r.priority||"medium",recurring:!!r.is_recurring,status:r.status,completedAt:r.completed_at?Date.parse(r.completed_at):null,delays:r.delays||0,n:{}};
   var ts=taskTs(t),n=now();if(t.status!=="pending"||n>=ts)t.n.start=true;if(t.status!=="pending"||n>=ts+WINDOW_DELAY)t.n.delay=true;return t;
@@ -1098,7 +1100,7 @@ function vProfile(){
    '<div class="chips" role="group" aria-label="Preview tier">'+choices.map(function(c){var t=TIERS.find(function(x){return x.name===c;});return '<button class="chip" data-action="ptier" data-t="'+c+'" aria-pressed="'+(pt.name===c||(c==="Raw"&&pt.name==="Rising"))+'">'+c+(st.tier.name===c?' · you':'')+'</button>';}).join("")+'</div>'+
    '<p class="note"><b>'+pt.name+'</b>: '+pt.regName+'</p>'+
    '<div class="tonelist">'+["start","delay","miss","complete","recovery"].map(function(ev){return '<div class="toneitem"><span>'+ev+'</span><p>'+esc(toneFor(ev,"Client proposal",{tier:pt,streak:ev==="delay"?st.streak:0}))+'</p></div>';}).join("")+'</div></div>'+
-   installCard()+
+   pushCard()+installCard()+
    '<div class="card"><p class="eyebrow">Account</p><dl class="kv"><dt>Name</dt><dd>'+esc(S.user.name||"—")+'</dd><dt>Email</dt><dd>'+esc(S.user.email||"—")+'</dd><dt>Role</dt><dd>'+esc(S.user.role||"—")+'</dd><dt>Time zone</dt><dd>'+esc(S.user.tz)+'</dd><dt>Plan</dt><dd>'+(S.pro?'Pro (preview)':'Free')+'</dd><dt>Data</dt><dd>'+(S.mode==="live"?'Saved to your account':'Demo, this browser only')+'</dd></dl>'+
    '<div class="row"><button class="btn btn-sm" data-action="upgrade">'+(S.pro?'Manage plan':'See Pro')+'</button><button class="btn btn-sm" data-action="retake">Retake assessment</button>'+(S.mode==="live"?'<button class="btn btn-sm" data-action="logout">Log out</button>':'')+'</div></div>';
 }
@@ -1233,6 +1235,44 @@ function renderTour(){
    '<div class="row" style="align-items:baseline;gap:12px"><span class="stepn num">'+pad(TOUR.i+1)+'</span><h3>'+esc(st.h)+'</h3></div><p class="note" style="font-size:14px;color:var(--ink)">'+esc(st.b)+'</p>'+
    '<div class="row">'+(TOUR.i>0?'<button class="btn btn-sm" data-action="tourback">Back</button>':'')+'<button class="btn btn-primary btn-sm" style="flex:1" data-action="tournext">'+(last?'Finish tour':'Next')+'</button></div></div>';
 }
+
+/* ---------- phone notifications (web push) ---------- */
+var PUSH={checked:false,sub:null,busy:false,msg:""};
+function pushSupported(){return "serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&/^https:|^http:\/\/localhost/.test(location.href);}
+function b64ToBytes(b64){var pad="=".repeat((4-b64.length%4)%4),raw=atob((b64+pad).replace(/-/g,"+").replace(/_/g,"/"));var out=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;}
+function checkPush(){if(PUSH.checked||!pushSupported())return;PUSH.checked=true;
+  navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription();}).then(function(sub){PUSH.sub=sub;if(S.screen==="app")render();}).catch(function(){});}
+async function enablePush(){
+  if(PUSH.busy)return;PUSH.busy=true;PUSH.msg="";render();
+  try{
+    var perm=await Notification.requestPermission();
+    if(perm!=="granted"){PUSH.msg=perm==="denied"?"Notifications are blocked for DIN. Allow them in your phone or browser settings, then try again.":"DIN needs your permission to send notifications.";return;}
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(CFG.vapidPublicKey)});
+    var j=sub.toJSON();
+    var r=await sb.from("push_subscriptions").upsert({user_id:S.uid,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,user_agent:navigator.userAgent.slice(0,200)},{onConflict:"endpoint"});
+    if(r.error)throw r.error;
+    PUSH.sub=sub;PUSH.msg="Notifications are on for this device.";
+  }catch(e){console.error(e);PUSH.msg="Couldn't turn on notifications ("+(e.message||e)+").";}
+  finally{PUSH.busy=false;render();}
+}
+async function disablePush(){
+  try{var sub=PUSH.sub;if(sub){await sb.from("push_subscriptions").delete().eq("endpoint",sub.endpoint);await sub.unsubscribe();}PUSH.sub=null;PUSH.msg="Notifications are off for this device.";}
+  catch(e){PUSH.msg="Couldn't turn off notifications.";}
+  render();
+}
+function testPush(){navigator.serviceWorker.ready.then(function(reg){reg.showNotification("Scheduled for now",{body:toneFor("start","Your test task"),icon:"icon-192.png",badge:"icon-192.png",tag:"din-test"});});}
+function pushCard(){
+  if(S.mode!=="live"||!CFG.vapidPublicKey)return "";
+  var body;
+  if(!pushSupported())body='<p class="note">'+(isIOS()&&!isStandalone()?'On iPhone, notifications work once DIN is on your home screen. Add it (below), open it from the icon, then turn them on here.':'This browser can\'t receive notifications. Try Chrome, or Safari with DIN added to your home screen.')+'</p>';
+  else{checkPush();
+    body=PUSH.sub?'<p class="note">DIN will nudge this device at task time, 10 minutes later, and when the window closes, even when the app is closed.</p><div class="row"><button class="btn btn-sm" data-action="pushtest">Send a test</button><button class="btn btn-sm" data-action="pushoff">Turn off</button></div>'
+      :'<p class="note">Get DIN\'s nudges at task time even when the app is closed.</p><button class="btn btn-primary btn-sm" data-action="pushon"'+(PUSH.busy?' disabled':'')+'>'+(PUSH.busy?'Turning on…':'Turn on notifications')+'</button>';}
+  return '<div class="card soft"><p class="eyebrow">Phone notifications</p><p style="font-weight:600">'+(PUSH.sub?'On for this device':'Nudges when DIN is closed')+'</p>'+body+(PUSH.msg?'<p class="note" role="status" style="font-weight:600">'+esc(PUSH.msg)+'</p>':'')+'</div>';
+}
+document.addEventListener("click",function(e){var b=e.target.closest("[data-action]");if(!b)return;var a=b.dataset.action;
+  if(a==="pushon")enablePush();else if(a==="pushoff")disablePush();else if(a==="pushtest")testPush();});
 
 /* ---------- install ---------- */
 var deferredInstall=null;
